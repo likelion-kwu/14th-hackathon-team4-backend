@@ -1,0 +1,112 @@
+name: CD
+
+# main에 push되면 자동으로 빌드 -> Docker Hub push -> EC2 배포
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/team4-backend
+
+jobs:
+  # 아직 Spring Boot 코드가 올라오기 전에는 배포를 건너뛴다.
+  # (build.gradle이 생기는 순간부터 자동으로 배포가 돌아간다)
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.probe.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: probe
+        run: |
+          if [ -f build.gradle ] || [ -f build.gradle.kts ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::build.gradle이 아직 없어 배포를 건너뜁니다. 코드가 올라오면 자동으로 실행됩니다."
+          fi
+
+  build-and-push:
+    needs: check
+    if: needs.check.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Run tests
+        run: |
+          chmod +x ./gradlew || true
+          if [ -x ./gradlew ]; then ./gradlew test; else gradle test; fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # compose 파일과 nginx 설정을 서버로 보낸다.
+      - name: Copy deploy files to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.yml,nginx/**"
+          target: "~/app"
+          overwrite: true
+
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/app
+
+            # 서버에 .env를 만든다. (레포에는 절대 커밋하지 않는다)
+            cat > .env <<'ENVEOF'
+            DOCKER_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/team4-backend:latest
+            MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
+            MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
+            MYSQL_USER=${{ secrets.MYSQL_USER }}
+            MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            ENVEOF
+            chmod 600 .env
+
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" \
+              | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+            docker compose pull
+            docker compose up -d
+            docker image prune -f
+            docker compose ps

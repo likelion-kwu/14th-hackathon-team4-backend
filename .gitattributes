@@ -1,0 +1,16 @@
+# Linux 서버/컨테이너에서 실행되는 파일은 항상 LF로 저장한다.
+# (CRLF가 섞이면 gradlew, Dockerfile, 배포 스크립트가 깨진다)
+* text=auto eol=lf
+
+*.sh        text eol=lf
+gradlew     text eol=lf
+Dockerfile  text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.conf      text eol=lf
+
+gradlew.bat text eol=crlf
+*.jar       binary
+*.png       binary
+*.jpg       binary
+*.pem       binary
