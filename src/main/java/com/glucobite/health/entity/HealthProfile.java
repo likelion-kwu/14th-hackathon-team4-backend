@@ -13,6 +13,9 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Entity
 @Table(
@@ -83,6 +86,20 @@ public class HealthProfile extends BaseTimeEntity {
     @Column(name = "dietary_restriction_note", length = 500)
     private String dietaryRestrictionNote;
 
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "health_profile_allergies",
+            joinColumns = @JoinColumn(name = "profile_id"),
+            inverseJoinColumns = @JoinColumn(name = "allergen_id"),
+            uniqueConstraints = {
+                    @UniqueConstraint(
+                            name = "uk_health_profile_allergies",
+                            columnNames = {"profile_id", "allergen_id"}
+                    )
+            }
+    )
+    private Set<Allergen> allergens = new LinkedHashSet<>();
+
     public HealthProfile(
             User user,
             LocalDate birthDate,
@@ -94,7 +111,8 @@ public class HealthProfile extends BaseTimeEntity {
             boolean glucoseDeviceConnected,
             Integer dailyCarbsTarget,
             VegetarianType vegetarianType,
-            String dietaryRestrictionNote
+            String dietaryRestrictionNote,
+            Collection<Allergen> allergens
     ) {
         this.user = user;
         this.birthDate = birthDate;
@@ -107,5 +125,6 @@ public class HealthProfile extends BaseTimeEntity {
         this.dailyCarbsTarget = dailyCarbsTarget;
         this.vegetarianType = vegetarianType;
         this.dietaryRestrictionNote = dietaryRestrictionNote;
+        this.allergens.addAll(allergens);
     }
 }

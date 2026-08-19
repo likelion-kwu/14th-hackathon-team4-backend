@@ -33,15 +33,31 @@ class FlywayMigrationTest {
 
     @Test
     void appliesInitialMigration() {
-        boolean versionOneApplied = List.of(flyway.info().applied()).stream()
-                .anyMatch(migration -> "1".equals(migration.getVersion().getVersion()));
-
-        assertTrue(versionOneApplied);
+        assertTrue(isApplied("1"));
         INITIAL_TABLES.forEach(table ->
                 assertEquals(0L, jdbcTemplate.queryForObject(
                         "SELECT COUNT(*) FROM " + table,
                         Long.class
                 ))
         );
+    }
+
+    @Test
+    void appliesOnboardingMigrationsAndSeedsAllergens() {
+        assertTrue(isApplied("2"));
+        assertTrue(isApplied("3"));
+        assertEquals(19L, jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM allergens",
+                Long.class
+        ));
+        assertEquals(0L, jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM health_profile_allergies",
+                Long.class
+        ));
+    }
+
+    private boolean isApplied(String version) {
+        return List.of(flyway.info().applied()).stream()
+                .anyMatch(migration -> version.equals(migration.getVersion().getVersion()));
     }
 }
