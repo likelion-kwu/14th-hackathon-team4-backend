@@ -173,6 +173,21 @@ class AuthSignupIntegrationTest {
         assertThat(userRepository.findByLoginId("future-date-user")).isEmpty();
     }
 
+    @Test
+    void rejectsPasswordLongerThanSeventyTwoUtf8Bytes() throws Exception {
+        String oversizedPasswordJson = validSignupJson("oversized-password-user", "")
+                .replace("password123!", "가".repeat(25));
+
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(oversizedPasswordJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fieldErrors.password").exists());
+
+        assertThat(userRepository.findByLoginId("oversized-password-user")).isEmpty();
+    }
+
     private String validSignupJson(String loginId, String allergenIds) {
         return """
                 {

@@ -108,6 +108,16 @@ class AuthLoginIntegrationTest {
                 .andExpect(jsonPath("$.fieldErrors.password").exists());
     }
 
+    @Test
+    void rejectsPasswordLongerThanSeventyTwoUtf8Bytes() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginJson("login-user", "가".repeat(25))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fieldErrors.password").exists());
+    }
+
     private String loginJson(String loginId, String password) {
         return """
                 {
