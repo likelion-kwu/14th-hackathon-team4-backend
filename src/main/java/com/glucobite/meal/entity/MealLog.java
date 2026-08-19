@@ -3,6 +3,7 @@ package com.glucobite.meal.entity;
 import com.glucobite.recipe.entity.Recipe;
 import com.glucobite.user.entity.User;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -36,12 +37,15 @@ public class MealLog {
     @Column(name = "meal_type", nullable = false, length = 20)
     private MealType mealType;
 
+    @PositiveOrZero
     @Column(precision = 6, scale = 2)
     private BigDecimal glucose;
 
+    @PositiveOrZero
     @Column(precision = 10, scale = 2)
     private BigDecimal carb;
 
+    @PositiveOrZero
     @Column(precision = 10, scale = 2)
     private BigDecimal sugar;
 
