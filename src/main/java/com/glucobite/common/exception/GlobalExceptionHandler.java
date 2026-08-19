@@ -3,6 +3,7 @@ package com.glucobite.common.exception;
 import com.glucobite.auth.exception.DuplicateLoginIdException;
 import com.glucobite.auth.exception.InvalidAllergenException;
 import com.glucobite.auth.exception.InvalidCredentialsException;
+import com.glucobite.health.exception.HealthProfileNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -61,6 +62,16 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiErrorResponse.of(
                 "INVALID_CREDENTIALS",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(HealthProfileNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleHealthProfileNotFound(
+            HealthProfileNotFoundException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiErrorResponse.of(
+                "HEALTH_PROFILE_NOT_FOUND",
                 exception.getMessage()
         ));
     }
