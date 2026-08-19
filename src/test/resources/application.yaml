@@ -11,3 +11,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+
+app:
+  jwt:
+    secret: test-secret-key-that-is-at-least-thirty-two-bytes-long
+    expiration: 1h

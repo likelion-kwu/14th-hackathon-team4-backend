@@ -1,5 +1,7 @@
 package com.glucobite.common.config;
 
+import com.glucobite.common.security.JwtAuthenticationEntryPoint;
+import org.springframework.security.config.Customizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -17,8 +19,15 @@ public class SecurityConfig {
             "/v3/api-docs/**"
     };
 
+    private static final String[] PUBLIC_API_PATHS = {
+            "/api/v1/auth/**"
+    };
+
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            JwtAuthenticationEntryPoint authenticationEntryPoint
+    ) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
                 .formLogin(form -> form.disable())
@@ -28,7 +37,12 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(OPENAPI_PATHS).permitAll()
+                        .requestMatchers(PUBLIC_API_PATHS).permitAll()
                         .anyRequest().authenticated()
+                )
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(Customizer.withDefaults())
+                        .authenticationEntryPoint(authenticationEntryPoint)
                 )
                 .build();
     }
