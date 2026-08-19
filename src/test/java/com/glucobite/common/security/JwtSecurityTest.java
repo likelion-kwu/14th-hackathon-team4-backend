@@ -5,8 +5,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -22,6 +29,9 @@ class JwtSecurityTest {
 
     @Autowired
     private JwtDecoder jwtDecoder;
+
+    @Autowired
+    private JwtEncoder jwtEncoder;
 
     @Autowired
     private MockMvc mockMvc;
@@ -57,6 +67,41 @@ class JwtSecurityTest {
     void rejectsInvalidToken() throws Exception {
         mockMvc.perform(get("/api/v1/health/profile")
                         .header("Authorization", "Bearer invalid-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void rejectsTamperedTokenSignature() throws Exception {
+        String token = jwtTokenService.issue(42L).accessToken();
+        int signatureStart = token.lastIndexOf('.') + 1;
+        char firstSignatureCharacter = token.charAt(signatureStart);
+        char replacement = firstSignatureCharacter == 'a' ? 'b' : 'a';
+        String tamperedToken = token.substring(0, signatureStart)
+                + replacement
+                + token.substring(signatureStart + 1);
+
+        mockMvc.perform(get("/api/v1/health/profile")
+                        .header("Authorization", "Bearer " + tamperedToken))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void rejectsExpiredToken() throws Exception {
+        Instant now = Instant.now();
+        JwtClaimsSet expiredClaims = JwtClaimsSet.builder()
+                .issuer("https://api.glucobite.app")
+                .issuedAt(now.minusSeconds(120))
+                .expiresAt(now.minusSeconds(60))
+                .subject("42")
+                .build();
+        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
+        String expiredToken = jwtEncoder.encode(JwtEncoderParameters.from(header, expiredClaims))
+                .getTokenValue();
+
+        mockMvc.perform(get("/api/v1/health/profile")
+                        .header("Authorization", "Bearer " + expiredToken))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }
