@@ -1,6 +1,7 @@
 package com.glucobite.common.config;
 
 import com.glucobite.common.security.JwtAuthenticationEntryPoint;
+import jakarta.servlet.DispatcherType;
 import org.springframework.security.config.Customizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -43,6 +44,7 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(authorize -> authorize
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(OPENAPI_PATHS).permitAll()
                         .requestMatchers(PUBLIC_API_PATHS).permitAll()
                         .anyRequest().authenticated()

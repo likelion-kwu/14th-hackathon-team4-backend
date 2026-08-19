@@ -1,5 +1,6 @@
 package com.glucobite.common.security;
 
+import jakarta.servlet.DispatcherType;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -104,5 +105,15 @@ class JwtSecurityTest {
                         .header("Authorization", "Bearer " + expiredToken))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void doesNotMaskErrorDispatchAsUnauthorized() throws Exception {
+        mockMvc.perform(get("/error").with(request -> {
+                    request.setDispatcherType(DispatcherType.ERROR);
+                    return request;
+                }))
+                .andExpect(result -> assertThat(result.getResponse().getStatus())
+                        .isNotEqualTo(401));
     }
 }
