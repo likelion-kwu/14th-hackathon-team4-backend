@@ -1,6 +1,7 @@
 package com.glucobite.ingredient.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -30,18 +31,23 @@ public class IngredientNutrition {
     @JoinColumn(name = "ingredient_id", nullable = false)
     private Ingredient ingredient;
 
+    @PositiveOrZero
     @Column(precision = 10, scale = 2)
     private BigDecimal calories;
 
+    @PositiveOrZero
     @Column(precision = 10, scale = 2)
     private BigDecimal carb;
 
+    @PositiveOrZero
     @Column(precision = 10, scale = 2)
     private BigDecimal protein;
 
+    @PositiveOrZero
     @Column(precision = 10, scale = 2)
     private BigDecimal fat;
 
+    @PositiveOrZero
     @Column(precision = 10, scale = 2)
     private BigDecimal fiber;
 
