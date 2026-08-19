@@ -16,3 +16,5 @@ app:
   jwt:
     secret: test-secret-key-that-is-at-least-thirty-two-bytes-long
     expiration: 1h
+  cors:
+    allowed-origins: https://allowed.example.com,http://localhost:5173
