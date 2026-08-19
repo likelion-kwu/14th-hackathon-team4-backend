@@ -5,7 +5,7 @@ import com.glucobite.health.entity.Sex;
 import com.glucobite.health.entity.VegetarianType;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Past;
+import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -16,8 +16,8 @@ import java.util.Set;
 
 @Schema(description = "가입 건강 프로필 요청")
 public record SignupProfileRequest(
-        @Schema(description = "생년월일, 오늘보다 과거 날짜", example = "2000-01-01")
-        @NotNull @Past LocalDate birthDate,
+        @Schema(description = "생년월일, 오늘 또는 과거 날짜", example = "2000-01-01")
+        @NotNull @PastOrPresent LocalDate birthDate,
 
         @Schema(description = "키(cm)", example = "165.50")
         @NotNull @Positive @Digits(integer = 3, fraction = 2) BigDecimal height,

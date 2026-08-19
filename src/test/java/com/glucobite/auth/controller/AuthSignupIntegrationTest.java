@@ -18,6 +18,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDate;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -141,6 +143,34 @@ class AuthSignupIntegrationTest {
                 .andExpect(jsonPath("$.fieldErrors['profile.dailyCarbsTarget']").exists());
 
         assertThat(userRepository.findByLoginId("boundary-user")).isEmpty();
+    }
+
+    @Test
+    void acceptsCurrentBirthDate() throws Exception {
+        String currentBirthDateJson = validSignupJson("current-date-user", "")
+                .replace("2000-01-01", LocalDate.now().toString());
+
+        mockMvc.perform(post("/api/v1/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(currentBirthDateJson))
+                .andExpect(status().isCreated());
+
+        assertThat(userRepository.findByLoginId("current-date-user")).isPresent();
+    }
+
+    @Test
+    void rejectsFutureBirthDate() throws Exception {
+        String futureBirthDateJson = validSignupJson("future-date-user", "")
+                .replace("2000-01-01", LocalDate.now().plusDays(1).toString());
+
+        mockMvc.perform(post("/api/v1/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(futureBirthDateJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fieldErrors['profile.birthDate']").exists());
+
+        assertThat(userRepository.findByLoginId("future-date-user")).isEmpty();
     }
 
     private String validSignupJson(String loginId, String allergenIds) {
