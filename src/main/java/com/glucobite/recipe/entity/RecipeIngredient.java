@@ -2,6 +2,8 @@ package com.glucobite.recipe.entity;
 
 import com.glucobite.ingredient.entity.Ingredient;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -35,6 +37,8 @@ public class RecipeIngredient {
     @JoinColumn(name = "ingredient_id", nullable = false)
     private Ingredient ingredient;
 
+    @NotNull
+    @Positive
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal amount;
 
