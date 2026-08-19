@@ -70,6 +70,19 @@ class FlywayMigrationTest {
         ));
     }
 
+    @Test
+    void appliesRefreshTokenMigration() {
+        assertTrue(isApplied("5"));
+        assertEquals(9L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_name = 'refresh_tokens'
+                """,
+                Long.class
+        ));
+    }
+
     private boolean isApplied(String version) {
         return List.of(flyway.info().applied()).stream()
                 .anyMatch(migration -> version.equals(migration.getVersion().getVersion()));
