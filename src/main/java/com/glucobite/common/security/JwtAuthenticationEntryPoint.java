@@ -14,7 +14,7 @@ import java.nio.charset.StandardCharsets;
 public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
     private static final String UNAUTHORIZED_RESPONSE = """
-            {"code":"UNAUTHORIZED","message":"인증이 필요합니다."}
+            {"code":"UNAUTHORIZED","message":"인증이 필요합니다.","fieldErrors":{}}
             """;
 
     @Override
