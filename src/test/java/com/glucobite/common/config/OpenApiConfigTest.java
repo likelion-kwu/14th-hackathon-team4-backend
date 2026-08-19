@@ -70,4 +70,25 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.fieldErrors")
                         .exists());
     }
+
+    @Test
+    void documentsPublicAllergenLookup() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/allergens'].get.summary")
+                        .value("알레르기 목록 조회"))
+                .andExpect(jsonPath("$.paths['/api/allergens'].get.parameters[0].name")
+                        .value("query"))
+                .andExpect(jsonPath("$.paths['/api/allergens'].get.parameters[0].required")
+                        .value(false))
+                .andExpect(jsonPath("$.paths['/api/allergens'].get.parameters[0].schema.maxLength")
+                        .value(100))
+                .andExpect(jsonPath("$.paths['/api/allergens'].get.responses['200'].content['*/*'].schema.items['$ref']")
+                        .value("#/components/schemas/AllergenResponse"))
+                .andExpect(jsonPath("$.paths['/api/allergens'].get.responses['400']").exists())
+                .andExpect(jsonPath("$.components.schemas.AllergenResponse.properties.allergenId.example")
+                        .value(2))
+                .andExpect(jsonPath("$.components.schemas.AllergenResponse.properties.name.example")
+                        .value("우유"));
+    }
 }
