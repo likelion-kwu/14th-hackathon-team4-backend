@@ -57,7 +57,7 @@ class AuthLoginIntegrationTest {
                 "로그인 사용자"
         ));
 
-        MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
+        MvcResult result = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(loginJson("login-user", "password123!")))
                 .andExpect(status().isOk())
@@ -79,7 +79,7 @@ class AuthLoginIntegrationTest {
                 "로그인 사용자"
         ));
 
-        mockMvc.perform(post("/api/v1/auth/login")
+        mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(loginJson("login-user", "wrong-password")))
                 .andExpect(status().isUnauthorized())
@@ -89,7 +89,7 @@ class AuthLoginIntegrationTest {
 
     @Test
     void rejectsUnknownLoginIdWithSameResponse() throws Exception {
-        mockMvc.perform(post("/api/v1/auth/login")
+        mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(loginJson("unknown-user", "wrong-password")))
                 .andExpect(status().isUnauthorized())
@@ -99,7 +99,7 @@ class AuthLoginIntegrationTest {
 
     @Test
     void rejectsBlankCredentials() throws Exception {
-        mockMvc.perform(post("/api/v1/auth/login")
+        mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(loginJson("", "")))
                 .andExpect(status().isBadRequest())

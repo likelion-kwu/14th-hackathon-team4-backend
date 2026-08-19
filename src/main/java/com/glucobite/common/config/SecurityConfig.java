@@ -22,7 +22,7 @@ public class SecurityConfig {
     };
 
     private static final String[] PUBLIC_API_PATHS = {
-            "/api/v1/auth/**"
+            "/api/auth/**"
     };
 
     @Bean

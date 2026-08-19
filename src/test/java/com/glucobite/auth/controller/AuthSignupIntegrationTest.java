@@ -58,7 +58,7 @@ class AuthSignupIntegrationTest {
         Long eggId = allergenRepository.findByName("난류").orElseThrow().getId();
         Long milkId = allergenRepository.findByName("우유").orElseThrow().getId();
 
-        mockMvc.perform(post("/api/v1/auth/signup")
+        mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validSignupJson("signup-user", eggId + "," + milkId)))
                 .andExpect(status().isCreated())
@@ -88,7 +88,7 @@ class AuthSignupIntegrationTest {
     void rejectsDuplicateLoginId() throws Exception {
         userRepository.save(new User("duplicate-user", "encoded-password", "기존 사용자"));
 
-        mockMvc.perform(post("/api/v1/auth/signup")
+        mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validSignupJson("duplicate-user", "")))
                 .andExpect(status().isConflict())
@@ -100,7 +100,7 @@ class AuthSignupIntegrationTest {
 
     @Test
     void rollsBackUserWhenAllergenDoesNotExist() throws Exception {
-        mockMvc.perform(post("/api/v1/auth/signup")
+        mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validSignupJson("rollback-user", "999999")))
                 .andExpect(status().isBadRequest())
@@ -117,7 +117,7 @@ class AuthSignupIntegrationTest {
                 .replace("\"birthDate\":\"2000-01-01\"", "\"birthDate\":\"2999-01-01\"")
                 .replace("\"sex\":\"FEMALE\"", "\"sex\":\"UNSPECIFIED\"");
 
-        mockMvc.perform(post("/api/v1/auth/signup")
+        mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidJson))
                 .andExpect(status().isBadRequest())
@@ -133,7 +133,7 @@ class AuthSignupIntegrationTest {
                 .replace("\"height\":165.50", "\"height\":0")
                 .replace("\"dailyCarbsTarget\":180", "\"dailyCarbsTarget\":0");
 
-        mockMvc.perform(post("/api/v1/auth/signup")
+        mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidJson))
                 .andExpect(status().isBadRequest())
@@ -150,7 +150,7 @@ class AuthSignupIntegrationTest {
         String currentBirthDateJson = validSignupJson("current-date-user", "")
                 .replace("2000-01-01", LocalDate.now().toString());
 
-        mockMvc.perform(post("/api/v1/auth/signup")
+        mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(currentBirthDateJson))
                 .andExpect(status().isCreated());
@@ -163,7 +163,7 @@ class AuthSignupIntegrationTest {
         String futureBirthDateJson = validSignupJson("future-date-user", "")
                 .replace("2000-01-01", LocalDate.now().plusDays(1).toString());
 
-        mockMvc.perform(post("/api/v1/auth/signup")
+        mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(futureBirthDateJson))
                 .andExpect(status().isBadRequest())

@@ -49,7 +49,7 @@ class JwtSecurityTest {
 
     @Test
     void rejectsProtectedRequestWithoutToken() throws Exception {
-        mockMvc.perform(get("/api/v1/health/profile"))
+        mockMvc.perform(get("/api/health/profile"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }
@@ -58,14 +58,14 @@ class JwtSecurityTest {
     void acceptsValidTokenBeforeControllerRouting() throws Exception {
         IssuedToken issuedToken = jwtTokenService.issue(42L);
 
-        mockMvc.perform(get("/api/v1/health/profile")
+        mockMvc.perform(get("/api/health/profile")
                         .header("Authorization", "Bearer " + issuedToken.accessToken()))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void rejectsInvalidToken() throws Exception {
-        mockMvc.perform(get("/api/v1/health/profile")
+        mockMvc.perform(get("/api/health/profile")
                         .header("Authorization", "Bearer invalid-token"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
@@ -81,7 +81,7 @@ class JwtSecurityTest {
                 + replacement
                 + token.substring(signatureStart + 1);
 
-        mockMvc.perform(get("/api/v1/health/profile")
+        mockMvc.perform(get("/api/health/profile")
                         .header("Authorization", "Bearer " + tamperedToken))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
@@ -100,7 +100,7 @@ class JwtSecurityTest {
         String expiredToken = jwtEncoder.encode(JwtEncoderParameters.from(header, expiredClaims))
                 .getTokenValue();
 
-        mockMvc.perform(get("/api/v1/health/profile")
+        mockMvc.perform(get("/api/health/profile")
                         .header("Authorization", "Bearer " + expiredToken))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
