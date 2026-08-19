@@ -8,6 +8,7 @@ import com.glucobite.health.repository.AllergenRepository;
 import com.glucobite.health.repository.HealthProfileRepository;
 import com.glucobite.user.entity.User;
 import com.glucobite.user.repository.UserRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,7 +49,16 @@ class AuthSignupIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
-    void cleanUp() {
+    void cleanUpBeforeTest() {
+        cleanUp();
+    }
+
+    @AfterEach
+    void cleanUpAfterTest() {
+        cleanUp();
+    }
+
+    private void cleanUp() {
         healthProfileRepository.deleteAll();
         userRepository.deleteAll();
     }

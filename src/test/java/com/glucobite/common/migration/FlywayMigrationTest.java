@@ -35,9 +35,15 @@ class FlywayMigrationTest {
     void appliesInitialMigration() {
         assertTrue(isApplied("1"));
         INITIAL_TABLES.forEach(table ->
-                assertEquals(0L, jdbcTemplate.queryForObject(
-                        "SELECT COUNT(*) FROM " + table,
-                        Long.class
+                assertEquals(1L, jdbcTemplate.queryForObject(
+                        """
+                        SELECT COUNT(*)
+                        FROM information_schema.tables
+                        WHERE table_schema = 'public'
+                          AND table_name = ?
+                        """,
+                        Long.class,
+                        table
                 ))
         );
     }
