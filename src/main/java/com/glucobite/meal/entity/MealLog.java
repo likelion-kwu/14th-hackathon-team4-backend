@@ -1,5 +1,6 @@
 package com.glucobite.meal.entity;
 
+import com.glucobite.common.entity.BaseTimeEntity;
 import com.glucobite.recipe.entity.Recipe;
 import com.glucobite.user.entity.User;
 import jakarta.persistence.*;
@@ -15,7 +16,7 @@ import java.time.LocalDateTime;
 @Table(name = "meal_logs")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MealLog {
+public class MealLog extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -51,14 +52,6 @@ public class MealLog {
 
     @Column(name = "eaten_at", nullable = false)
     private LocalDateTime eatenAt;
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
-    }
 
     public MealLog(
             User user,
