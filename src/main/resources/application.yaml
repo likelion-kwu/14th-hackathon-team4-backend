@@ -17,3 +17,10 @@ app:
   jwt:
     secret: ${JWT_SECRET}
     expiration: ${JWT_EXPIRATION:1h}
+  auth:
+    refresh-token:
+      expiration: ${REFRESH_TOKEN_EXPIRATION:30d}
+      cookie-name: ${REFRESH_TOKEN_COOKIE_NAME:refresh_token}
+      cookie-secure: ${REFRESH_TOKEN_COOKIE_SECURE:true}
+      cookie-same-site: ${REFRESH_TOKEN_COOKIE_SAME_SITE:Lax}
+      cookie-domain: ${REFRESH_TOKEN_COOKIE_DOMAIN:}
