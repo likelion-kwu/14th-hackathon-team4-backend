@@ -91,4 +91,39 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.components.schemas.AllergenResponse.properties.name.example")
                         .value("우유"));
     }
+
+    @Test
+    void documentsAuthenticatedRecipeList() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.summary")
+                        .value("내 레시피 목록 조회"))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.security[0].bearerAuth").exists())
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.parameters[0].name")
+                        .value("completed"))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.parameters[1].name")
+                        .value("page"))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.parameters[1].schema.default")
+                        .value(0))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.parameters[1].schema.minimum")
+                        .value(0))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.parameters[2].name")
+                        .value("size"))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.parameters[2].schema.default")
+                        .value(20))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.parameters[2].schema.minimum")
+                        .value(1))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.parameters[2].schema.maximum")
+                        .value(100))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/RecipePageResponse"))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.responses['400']").exists())
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.responses['401']").exists())
+                .andExpect(jsonPath("$.components.schemas.RecipePageResponse.properties.content.items['$ref']")
+                        .value("#/components/schemas/RecipeSummaryResponse"))
+                .andExpect(jsonPath("$.components.schemas.RecipeSummaryResponse.properties.importType.enum",
+                        containsInAnyOrder("URL", "IMAGE", "TEXT")))
+                .andExpect(jsonPath("$.components.schemas.RecipeSummaryResponse.properties.totalCalories")
+                        .exists());
+    }
 }
