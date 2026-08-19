@@ -198,6 +198,18 @@ class AuthSignupIntegrationTest {
         assertThat(userRepository.findByLoginId("oversized-password-user")).isEmpty();
     }
 
+    @Test
+    void rejectsNullAllergenIdAtValidationBoundary() throws Exception {
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validSignupJson("null-allergen-user", "null")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fieldErrors['profile.allergenIds[]']").exists());
+
+        assertThat(userRepository.findByLoginId("null-allergen-user")).isEmpty();
+    }
+
     private String validSignupJson(String loginId, String allergenIds) {
         return """
                 {

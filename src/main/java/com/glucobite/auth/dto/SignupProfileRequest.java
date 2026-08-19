@@ -41,7 +41,7 @@ public record SignupProfileRequest(
         @NotNull VegetarianType vegetarianType,
 
         @Schema(description = "선택한 알레르기 항목 ID 목록", example = "[1, 2]")
-        @NotNull Set<@Positive Long> allergenIds,
+        @NotNull Set<@NotNull @Positive Long> allergenIds,
 
         @Schema(description = "기타 식이 제한 사항, 최대 500자", example = "갑각류 제외")
         @Size(max = 500) String dietaryRestrictionNote
