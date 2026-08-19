@@ -126,4 +126,34 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.components.schemas.RecipeSummaryResponse.properties.totalCalories")
                         .exists());
     }
+
+    @Test
+    void documentsAuthenticatedHealthProfileReadAndUpdate() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/health/profile'].get.summary")
+                        .value("내 건강 프로필 조회"))
+                .andExpect(jsonPath("$.paths['/api/health/profile'].get.security[0].bearerAuth")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/health/profile'].get.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/HealthProfileResponse"))
+                .andExpect(jsonPath("$.paths['/api/health/profile'].get.responses['401']").exists())
+                .andExpect(jsonPath("$.paths['/api/health/profile'].get.responses['404']").exists())
+                .andExpect(jsonPath("$.paths['/api/health/profile'].put.summary")
+                        .value("내 건강 프로필 수정"))
+                .andExpect(jsonPath("$.paths['/api/health/profile'].put.requestBody.content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/HealthProfileUpdateRequest"))
+                .andExpect(jsonPath("$.paths['/api/health/profile'].put.responses['200']").exists())
+                .andExpect(jsonPath("$.paths['/api/health/profile'].put.responses['400']").exists())
+                .andExpect(jsonPath("$.paths['/api/health/profile'].put.responses['401']").exists())
+                .andExpect(jsonPath("$.paths['/api/health/profile'].put.responses['404']").exists())
+                .andExpect(jsonPath("$.components.schemas.HealthProfileUpdateRequest.properties.sex.enum",
+                        containsInAnyOrder("MALE", "FEMALE")))
+                .andExpect(jsonPath("$.components.schemas.HealthProfileUpdateRequest.properties.sex.enum",
+                        not(hasItem("UNSPECIFIED"))))
+                .andExpect(jsonPath("$.components.schemas.HealthProfileResponse.properties.allergens.items['$ref']")
+                        .value("#/components/schemas/AllergenResponse"))
+                .andExpect(jsonPath("$.components.schemas.HealthProfileResponse.properties.diabetesStatus")
+                        .doesNotExist());
+    }
 }
