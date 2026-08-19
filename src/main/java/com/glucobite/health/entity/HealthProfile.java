@@ -3,6 +3,10 @@ package com.glucobite.health.entity;
 import com.glucobite.common.entity.BaseTimeEntity;
 import com.glucobite.user.entity.User;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Past;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -29,22 +33,34 @@ public class HealthProfile extends BaseTimeEntity {
     @Column(name = "profile_id")
     private Long id;
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @NotNull
+    @Past
     @Column(name = "birth_date")
     private LocalDate birthDate;
 
+    @NotNull
+    @Positive
     @Column(precision = 5, scale = 2)
     private BigDecimal height;
 
+    @NotNull
+    @Positive
     @Column(precision = 5, scale = 2)
     private BigDecimal weight;
 
+    @NotNull
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private Sex sex;
+
+    @NotNull
+    @Enumerated(EnumType.STRING)
+    @Column(name = "health_goal", nullable = false, length = 40)
+    private HealthGoal healthGoal;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "diabetes_status", length = 30)
@@ -53,9 +69,17 @@ public class HealthProfile extends BaseTimeEntity {
     @Column(name = "glucose_device_connected", nullable = false)
     private boolean glucoseDeviceConnected;
 
+    @NotNull
+    @Positive
     @Column(name = "daily_carbs_target")
     private Integer dailyCarbsTarget;
 
+    @NotNull
+    @Enumerated(EnumType.STRING)
+    @Column(name = "vegetarian_type", nullable = false, length = 30)
+    private VegetarianType vegetarianType;
+
+    @Size(max = 500)
     @Column(name = "dietary_restriction_note", length = 500)
     private String dietaryRestrictionNote;
 
@@ -65,9 +89,11 @@ public class HealthProfile extends BaseTimeEntity {
             BigDecimal height,
             BigDecimal weight,
             Sex sex,
+            HealthGoal healthGoal,
             DiabetesStatus diabetesStatus,
             boolean glucoseDeviceConnected,
             Integer dailyCarbsTarget,
+            VegetarianType vegetarianType,
             String dietaryRestrictionNote
     ) {
         this.user = user;
@@ -75,9 +101,11 @@ public class HealthProfile extends BaseTimeEntity {
         this.height = height;
         this.weight = weight;
         this.sex = sex;
+        this.healthGoal = healthGoal;
         this.diabetesStatus = diabetesStatus;
         this.glucoseDeviceConnected = glucoseDeviceConnected;
         this.dailyCarbsTarget = dailyCarbsTarget;
+        this.vegetarianType = vegetarianType;
         this.dietaryRestrictionNote = dietaryRestrictionNote;
     }
 }
