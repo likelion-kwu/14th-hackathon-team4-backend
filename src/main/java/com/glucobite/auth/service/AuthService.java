@@ -1,10 +1,12 @@
 package com.glucobite.auth.service;
 
+import com.glucobite.auth.dto.LoginRequest;
 import com.glucobite.auth.dto.SignupProfileRequest;
 import com.glucobite.auth.dto.SignupRequest;
 import com.glucobite.auth.dto.TokenResponse;
 import com.glucobite.auth.exception.DuplicateLoginIdException;
 import com.glucobite.auth.exception.InvalidAllergenException;
+import com.glucobite.auth.exception.InvalidCredentialsException;
 import com.glucobite.common.security.JwtTokenService;
 import com.glucobite.health.entity.Allergen;
 import com.glucobite.health.entity.HealthProfile;
@@ -18,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -28,6 +31,7 @@ public class AuthService {
     private final AllergenRepository allergenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenService jwtTokenService;
+    private final String dummyPasswordHash;
 
     public AuthService(
             UserRepository userRepository,
@@ -41,6 +45,7 @@ public class AuthService {
         this.allergenRepository = allergenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenService = jwtTokenService;
+        this.dummyPasswordHash = passwordEncoder.encode("dummy-password-for-timing-protection");
     }
 
     @Transactional
@@ -69,6 +74,20 @@ public class AuthService {
         healthProfileRepository.save(healthProfile);
 
         return TokenResponse.from(jwtTokenService.issue(user.getId()));
+    }
+
+    @Transactional(readOnly = true)
+    public TokenResponse login(LoginRequest request) {
+        Optional<User> foundUser = userRepository.findByLoginId(request.loginId());
+        String passwordHash = foundUser
+                .map(User::getPassword)
+                .orElse(dummyPasswordHash);
+        boolean passwordMatches = passwordEncoder.matches(request.password(), passwordHash);
+        if (foundUser.isEmpty() || !passwordMatches) {
+            throw new InvalidCredentialsException();
+        }
+
+        return TokenResponse.from(jwtTokenService.issue(foundUser.orElseThrow().getId()));
     }
 
     private User saveUser(SignupRequest request) {

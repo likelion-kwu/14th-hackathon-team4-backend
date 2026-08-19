@@ -1,5 +1,6 @@
 package com.glucobite.auth.controller;
 
+import com.glucobite.auth.dto.LoginRequest;
 import com.glucobite.auth.dto.SignupRequest;
 import com.glucobite.auth.dto.TokenResponse;
 import com.glucobite.auth.service.AuthService;
@@ -25,5 +26,10 @@ public class AuthController {
     @ResponseStatus(HttpStatus.CREATED)
     public TokenResponse signup(@Valid @RequestBody SignupRequest request) {
         return authService.signup(request);
+    }
+
+    @PostMapping("/login")
+    public TokenResponse login(@Valid @RequestBody LoginRequest request) {
+        return authService.login(request);
     }
 }

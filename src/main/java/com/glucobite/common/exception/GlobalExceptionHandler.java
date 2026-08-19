@@ -2,6 +2,7 @@ package com.glucobite.common.exception;
 
 import com.glucobite.auth.exception.DuplicateLoginIdException;
 import com.glucobite.auth.exception.InvalidAllergenException;
+import com.glucobite.auth.exception.InvalidCredentialsException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -50,6 +51,16 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleDuplicateLoginId(DuplicateLoginIdException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiErrorResponse.of(
                 "DUPLICATE_LOGIN_ID",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidCredentials(
+            InvalidCredentialsException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiErrorResponse.of(
+                "INVALID_CREDENTIALS",
                 exception.getMessage()
         ));
     }
