@@ -32,5 +32,8 @@ jobs:
         with:
           cache-read-only: ${{ github.event_name == 'pull_request' }}
 
+      - name: Test Gradle retry behavior
+        run: ./scripts/ci-gradle-check-test.sh
+
       - name: Run checks
-        run: ./gradlew clean check --no-daemon
+        run: ./scripts/ci-gradle-check.sh
