@@ -56,6 +56,20 @@ class FlywayMigrationTest {
         ));
     }
 
+    @Test
+    void appliesRecipeListMetadataMigration() {
+        assertTrue(isApplied("4"));
+        assertEquals(2L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_name = 'recipes'
+                  AND column_name IN ('import_type', 'total_calories')
+                """,
+                Long.class
+        ));
+    }
+
     private boolean isApplied(String version) {
         return List.of(flyway.info().applied()).stream()
                 .anyMatch(migration -> version.equals(migration.getVersion().getVersion()));
