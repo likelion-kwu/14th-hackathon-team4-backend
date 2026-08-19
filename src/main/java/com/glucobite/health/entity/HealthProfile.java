@@ -4,7 +4,7 @@ import com.glucobite.common.entity.BaseTimeEntity;
 import com.glucobite.user.entity.User;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Past;
+import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.AccessLevel;
@@ -41,23 +41,23 @@ public class HealthProfile extends BaseTimeEntity {
     private User user;
 
     @NotNull
-    @Past
-    @Column(name = "birth_date")
+    @PastOrPresent
+    @Column(name = "birth_date", nullable = false)
     private LocalDate birthDate;
 
     @NotNull
     @Positive
-    @Column(precision = 5, scale = 2)
+    @Column(nullable = false, precision = 5, scale = 2)
     private BigDecimal height;
 
     @NotNull
     @Positive
-    @Column(precision = 5, scale = 2)
+    @Column(nullable = false, precision = 5, scale = 2)
     private BigDecimal weight;
 
     @NotNull
     @Enumerated(EnumType.STRING)
-    @Column(length = 20)
+    @Column(nullable = false, length = 20)
     private Sex sex;
 
     @NotNull
@@ -74,7 +74,7 @@ public class HealthProfile extends BaseTimeEntity {
 
     @NotNull
     @Positive
-    @Column(name = "daily_carbs_target")
+    @Column(name = "daily_carbs_target", nullable = false)
     private Integer dailyCarbsTarget;
 
     @NotNull

@@ -74,6 +74,22 @@ class HealthProfileValidationTest {
     }
 
     @Test
+    void acceptsCurrentBirthDate() {
+        HealthProfile profile = createProfile(
+                LocalDate.now(),
+                new BigDecimal("165.50"),
+                new BigDecimal("55.20"),
+                Sex.FEMALE,
+                HealthGoal.CARB_MANAGEMENT,
+                180,
+                VegetarianType.NONE,
+                null
+        );
+
+        assertFalse(hasViolation(validator.validate(profile), "birthDate"));
+    }
+
+    @Test
     void rejectsNonPositiveBodyAndCarbValues() {
         HealthProfile profile = createProfile(
                 LocalDate.of(2000, 1, 1),
