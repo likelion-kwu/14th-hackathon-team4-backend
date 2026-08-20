@@ -30,7 +30,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -198,11 +197,13 @@ public class RecipeService {
     }
 
     private Map<Long, List<RecipeIngredient>> loadIngredientsByRecipe(List<Long> recipeIds) {
-        Map<Long, List<RecipeIngredient>> grouped = new HashMap<>();
-        for (Long recipeId : recipeIds) {
-            grouped.put(recipeId, recipeIngredientRepository.findByRecipeId(recipeId));
+        if (recipeIds.isEmpty()) {
+            return Map.of();
         }
-        return grouped;
+        return recipeIngredientRepository.findByRecipeIdIn(recipeIds).stream()
+                .collect(Collectors.groupingBy(
+                        ingredient -> ingredient.getRecipe().getId()
+                ));
     }
 
     private boolean containsRestrictedIngredient(
