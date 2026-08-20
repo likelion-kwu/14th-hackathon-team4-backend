@@ -49,7 +49,7 @@ class MealLogValidationTest {
     }
 
     @Test
-    void acceptsZeroAndUnmeasuredHealthMetrics() {
+    void acceptsZeroNutritionMetrics() {
         User user = new User("meal-user", "encoded-password", "식사 사용자");
         MealLog zeroMealLog = createMealLog(
                 user,
@@ -57,24 +57,22 @@ class MealLogValidationTest {
                 BigDecimal.ZERO,
                 BigDecimal.ZERO
         );
-        MealLog unmeasuredMealLog = createMealLog(user, null, null, null);
-
         assertTrue(validator.validate(zeroMealLog).isEmpty());
-        assertTrue(validator.validate(unmeasuredMealLog).isEmpty());
     }
 
     private MealLog createMealLog(
             User user,
-            BigDecimal glucose,
+            BigDecimal calories,
             BigDecimal carb,
             BigDecimal sugar
     ) {
         return new MealLog(
                 user,
                 null,
+                "직접 식사",
                 null,
                 MealType.BREAKFAST,
-                glucose,
+                calories,
                 carb,
                 sugar,
                 LocalDateTime.of(2026, 8, 19, 8, 0)

@@ -5,6 +5,9 @@ import com.glucobite.recipe.entity.Recipe;
 import com.glucobite.user.entity.User;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -31,6 +34,11 @@ public class MealLog extends BaseTimeEntity {
     @JoinColumn(name = "recipe_id")
     private Recipe recipe;
 
+    @NotBlank
+    @Size(max = 150)
+    @Column(nullable = false, length = 150)
+    private String title;
+
     @Column(name = "image_url", length = 500)
     private String imageUrl;
 
@@ -38,9 +46,10 @@ public class MealLog extends BaseTimeEntity {
     @Column(name = "meal_type", nullable = false, length = 20)
     private MealType mealType;
 
+    @NotNull
     @PositiveOrZero
-    @Column(precision = 6, scale = 2)
-    private BigDecimal glucose;
+    @Column(precision = 10, scale = 2)
+    private BigDecimal calories;
 
     @PositiveOrZero
     @Column(precision = 10, scale = 2)
@@ -56,18 +65,20 @@ public class MealLog extends BaseTimeEntity {
     public MealLog(
             User user,
             Recipe recipe,
+            String title,
             String imageUrl,
             MealType mealType,
-            BigDecimal glucose,
+            BigDecimal calories,
             BigDecimal carb,
             BigDecimal sugar,
             LocalDateTime eatenAt
     ) {
         this.user = user;
         this.recipe = recipe;
+        this.title = title;
         this.imageUrl = imageUrl;
         this.mealType = mealType;
-        this.glucose = glucose;
+        this.calories = calories;
         this.carb = carb;
         this.sugar = sugar;
         this.eatenAt = eatenAt;

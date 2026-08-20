@@ -4,6 +4,8 @@ import com.glucobite.auth.exception.DuplicateLoginIdException;
 import com.glucobite.auth.exception.InvalidAllergenException;
 import com.glucobite.auth.exception.InvalidCredentialsException;
 import com.glucobite.health.exception.HealthProfileNotFoundException;
+import com.glucobite.tracking.exception.InvalidTrackingDateRangeException;
+import com.glucobite.meal.exception.MealLogNotFoundException;
 import com.glucobite.recipe.exception.IngredientNotFoundException;
 import com.glucobite.recipe.exception.InvalidRecipeSubstitutionException;
 import com.glucobite.recipe.exception.InvalidRecipeAnalysisException;
@@ -242,6 +244,26 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiErrorResponse.of(
                 "HEALTH_PROFILE_NOT_FOUND",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(InvalidTrackingDateRangeException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidTrackingDateRange(
+            InvalidTrackingDateRangeException exception
+    ) {
+        return ResponseEntity.badRequest().body(ApiErrorResponse.of(
+                "INVALID_DATE_RANGE",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(MealLogNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleMealLogNotFound(
+            MealLogNotFoundException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiErrorResponse.of(
+                "MEAL_LOG_NOT_FOUND",
                 exception.getMessage()
         ));
     }

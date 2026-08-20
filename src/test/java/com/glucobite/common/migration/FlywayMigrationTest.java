@@ -259,6 +259,29 @@ class FlywayMigrationTest {
         ));
     }
 
+    @Test
+    void appliesDailyHealthTrackingMigration() {
+        assertTrue(isApplied("15"));
+        assertEquals(2L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_name = 'meal_logs'
+                  AND column_name IN ('title', 'calories')
+                """,
+                Long.class
+        ));
+        assertEquals(1L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                  AND table_name = 'glucose_records'
+                """,
+                Long.class
+        ));
+    }
+
     private boolean isApplied(String version) {
         return List.of(flyway.info().applied()).stream()
                 .anyMatch(migration -> version.equals(migration.getVersion().getVersion()));

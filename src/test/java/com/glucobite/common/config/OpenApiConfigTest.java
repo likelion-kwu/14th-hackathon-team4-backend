@@ -290,4 +290,64 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.components.schemas.IngredientSubstitutionRequest.properties.suggestionId")
                         .exists());
     }
+
+    @Test
+    void documentsMealLogContracts() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/meal-logs'].post.summary")
+                        .value("식사 기록"))
+                .andExpect(jsonPath("$.paths['/api/meal-logs'].post.security[0].bearerAuth")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/meal-logs'].post.responses['201']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/meal-logs'].get.summary")
+                        .value("식사 기록 조회"))
+                .andExpect(jsonPath("$.components.schemas.CreateMealLogRequest.properties.mealType.enum")
+                        .isArray());
+    }
+
+    @Test
+    void documentsGlucoseRecordContracts() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/glucose-records'].post.summary")
+                        .value("혈당 기록"))
+                .andExpect(jsonPath("$.paths['/api/glucose-records'].post.responses['201']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/glucose-records'].get.summary")
+                        .value("혈당 기록 조회"))
+                .andExpect(jsonPath("$.components.schemas.CreateGlucoseRecordRequest.properties.context.enum")
+                        .isArray());
+    }
+
+    @Test
+    void documentsTodaySummaryContract() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/dashboard/today'].get.summary")
+                        .value("오늘 요약"))
+                .andExpect(jsonPath("$.paths['/api/dashboard/today'].get.security[0].bearerAuth")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.TodaySummaryResponse.properties.carbProgressPercent")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.TodaySummaryResponse.properties.averageGlucose")
+                        .exists());
+    }
+
+    @Test
+    void documentsTrendRecommendationContract() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/recommendations/trends'].get.summary")
+                        .value("추세 기반 추천"))
+                .andExpect(jsonPath("$.paths['/api/recommendations/trends'].get.parameters[0].schema.default")
+                        .value(7))
+                .andExpect(jsonPath("$.paths['/api/recommendations/trends'].get.parameters[0].schema.minimum")
+                        .value(7))
+                .andExpect(jsonPath("$.paths['/api/recommendations/trends'].get.parameters[0].schema.maximum")
+                        .value(30))
+                .andExpect(jsonPath("$.components.schemas.TrendRecommendationResponse.properties.disclaimer")
+                        .exists());
+    }
 }
