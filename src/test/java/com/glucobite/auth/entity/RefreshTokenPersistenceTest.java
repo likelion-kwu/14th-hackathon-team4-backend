@@ -8,6 +8,7 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -21,7 +22,9 @@ class RefreshTokenPersistenceTest {
     @Test
     void persistsHashWithoutRawTokenColumn() {
         User user = persistUser("refresh-token-user");
-        LocalDateTime expiresAt = LocalDateTime.now().plusDays(30);
+        LocalDateTime expiresAt = LocalDateTime.now()
+                .plusDays(30)
+                .truncatedTo(ChronoUnit.MICROS);
         RefreshToken token = entityManager.persistFlushFind(new RefreshToken(
                 user,
                 "a".repeat(64),
