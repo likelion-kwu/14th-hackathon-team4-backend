@@ -20,7 +20,8 @@ public class PublicYouTubeTranscriptProvider implements YouTubeTranscriptProvide
 
     private static final int MAX_PLAYER_PAGE_BYTES = 5_000_000;
     private static final int MAX_TRANSCRIPT_BYTES = 2_000_000;
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
+    static final int MAX_EXTERNAL_REQUESTS = 5;
+    static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(4);
     private static final String USER_AGENT =
             "Mozilla/5.0 (compatible; GlucobiteRecipeImporter/1.0)";
     private static final List<InnerTubeClient> INNERTUBE_CLIENTS = List.of(
