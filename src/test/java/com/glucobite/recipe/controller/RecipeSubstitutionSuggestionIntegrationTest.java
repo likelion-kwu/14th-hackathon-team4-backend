@@ -376,6 +376,51 @@ class RecipeSubstitutionSuggestionIntegrationTest {
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
+    @Test
+    void passesExcludedOwnedSuggestionsWhenRequestingAnotherCandidate() throws Exception {
+        when(suggestionGenerator.generate(any()))
+                .thenReturn(generated("두부", "0.760000", "0.081000"))
+                .thenAnswer(invocation -> {
+                    var context = invocation.getArgument(
+                            0,
+                            com.glucobite.recipe.substitution.SubstitutionSuggestionContext.class
+                    );
+                    assertThat(context.excludedSuggestions()).containsExactly("두부");
+                    return generated("새송이버섯", "0.350000", "0.025000");
+                });
+
+        String firstBody = mockMvc.perform(post(
+                                "/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives",
+                                recipe.getId(),
+                                pork.getId()
+                        )
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{" + "\"userInput\":\"대체재 추천\"" + "}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        Long firstSuggestionId = objectMapper.readTree(firstBody)
+                .get("suggestions").get(0).get("suggestionId").asLong();
+
+        mockMvc.perform(post(
+                                "/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives",
+                                recipe.getId(),
+                                pork.getId()
+                        )
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "userInput": "다른 거 추천해줘",
+                                  "excludeSuggestionIds": [%d]
+                                }
+                                """.formatted(firstSuggestionId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.suggestions[0].title").value("새송이버섯"));
+
+        verify(suggestionGenerator, times(2)).generate(any());
+    }
+
     private GeneratedSubstitutionSuggestions generated(
             String title,
             String caloriesPerGram,
