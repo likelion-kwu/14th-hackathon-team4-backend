@@ -96,6 +96,20 @@ class FlywayMigrationTest {
         ));
     }
 
+    @Test
+    void appliesSugarAndSodiumNutritionMigration() {
+        assertTrue(isApplied("7"));
+        assertEquals(2L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_name = 'ingredient_nutritions'
+                  AND column_name IN ('sugar', 'sodium')
+                """,
+                Long.class
+        ));
+    }
+
     private boolean isApplied(String version) {
         return List.of(flyway.info().applied()).stream()
                 .anyMatch(migration -> version.equals(migration.getVersion().getVersion()));

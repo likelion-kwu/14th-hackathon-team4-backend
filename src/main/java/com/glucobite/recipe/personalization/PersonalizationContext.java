@@ -38,7 +38,9 @@ public record PersonalizationContext(
             BigDecimal carb,
             BigDecimal protein,
             BigDecimal fat,
-            BigDecimal fiber
+            BigDecimal fiber,
+            BigDecimal sugar,
+            BigDecimal sodium
     ) {
     }
 

@@ -358,7 +358,9 @@ public class RecipePersonalizationCandidateService {
                 nutrition == null ? null : nutrition.getCarb(),
                 nutrition == null ? null : nutrition.getProtein(),
                 nutrition == null ? null : nutrition.getFat(),
-                nutrition == null ? null : nutrition.getFiber()
+                nutrition == null ? null : nutrition.getFiber(),
+                nutrition == null ? null : nutrition.getSugar(),
+                nutrition == null ? null : nutrition.getSodium()
         );
     }
 

@@ -19,11 +19,29 @@ public record NutritionSummary(
         BigDecimal fat,
 
         @Schema(description = "식이섬유(g)", example = "6.10")
-        BigDecimal fiber
+        BigDecimal fiber,
+
+        @Schema(description = "당류(g)", example = "9.00")
+        BigDecimal sugar,
+
+        @Schema(description = "나트륨(mg)", example = "480.00")
+        BigDecimal sodium
 ) {
+
+    public NutritionSummary(
+            BigDecimal calories,
+            BigDecimal carb,
+            BigDecimal protein,
+            BigDecimal fat,
+            BigDecimal fiber
+    ) {
+        this(calories, carb, protein, fat, fiber, BigDecimal.ZERO, BigDecimal.ZERO);
+    }
 
     public static NutritionSummary zero() {
         return new NutritionSummary(
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,

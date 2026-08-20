@@ -42,6 +42,25 @@ class RecipeNutritionCalculatorTest {
     }
 
     @Test
+    void includesSugarAndSodiumInContribution() {
+        IngredientNutrition nutrition = new IngredientNutrition(
+                new Ingredient("간장 양념"),
+                new BigDecimal("100.00"),
+                new BigDecimal("10.00"),
+                new BigDecimal("5.00"),
+                new BigDecimal("2.00"),
+                new BigDecimal("1.00"),
+                new BigDecimal("4.00"),
+                new BigDecimal("300.00")
+        );
+
+        NutritionSummary result = calculator.contribute(nutrition, new BigDecimal("0.50"));
+
+        assertThat(result.sugar()).isEqualByComparingTo("2.0000");
+        assertThat(result.sodium()).isEqualByComparingTo("150.0000");
+    }
+
+    @Test
     void returnsZeroWhenNutritionIsMissing() {
         NutritionSummary result = calculator.contribute(null, new BigDecimal("1.5"));
 

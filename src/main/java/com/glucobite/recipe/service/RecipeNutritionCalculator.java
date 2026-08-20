@@ -23,7 +23,9 @@ public class RecipeNutritionCalculator {
                 multiply(nutrition.getCarb(), amount),
                 multiply(nutrition.getProtein(), amount),
                 multiply(nutrition.getFat(), amount),
-                multiply(nutrition.getFiber(), amount)
+                multiply(nutrition.getFiber(), amount),
+                multiply(nutrition.getSugar(), amount),
+                multiply(nutrition.getSodium(), amount)
         );
     }
 
@@ -33,6 +35,8 @@ public class RecipeNutritionCalculator {
         BigDecimal protein = BigDecimal.ZERO;
         BigDecimal fat = BigDecimal.ZERO;
         BigDecimal fiber = BigDecimal.ZERO;
+        BigDecimal sugar = BigDecimal.ZERO;
+        BigDecimal sodium = BigDecimal.ZERO;
         for (NutritionSummary summary : summaries) {
             if (summary == null) {
                 continue;
@@ -42,8 +46,10 @@ public class RecipeNutritionCalculator {
             protein = protein.add(nullToZero(summary.protein()));
             fat = fat.add(nullToZero(summary.fat()));
             fiber = fiber.add(nullToZero(summary.fiber()));
+            sugar = sugar.add(nullToZero(summary.sugar()));
+            sodium = sodium.add(nullToZero(summary.sodium()));
         }
-        return new NutritionSummary(calories, carb, protein, fat, fiber);
+        return new NutritionSummary(calories, carb, protein, fat, fiber, sugar, sodium);
     }
 
     /**
@@ -56,7 +62,9 @@ public class RecipeNutritionCalculator {
                 subtract(personalized.carb(), base.carb()),
                 subtract(personalized.protein(), base.protein()),
                 subtract(personalized.fat(), base.fat()),
-                subtract(personalized.fiber(), base.fiber())
+                subtract(personalized.fiber(), base.fiber()),
+                subtract(personalized.sugar(), base.sugar()),
+                subtract(personalized.sodium(), base.sodium())
         );
     }
 
