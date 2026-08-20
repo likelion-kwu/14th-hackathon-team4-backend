@@ -138,6 +138,23 @@ class RecipeReadIntegrationTest {
     }
 
     @Test
+    void excludesRecipeRestrictedByVegetarianType() throws Exception {
+        User vegan = userRepository.save(new User("vegan-recommend", "encoded-password", "비건"));
+        healthProfileRepository.save(new HealthProfile(
+                vegan, LocalDate.of(1990, 1, 1), new BigDecimal("170.00"),
+                new BigDecimal("65.00"), Sex.MALE, HealthGoal.CARB_MANAGEMENT,
+                null, false, 180, VegetarianType.VEGAN, null, List.of()
+        ));
+        Ingredient chicken = saveIngredient("닭가슴살", "165.00", "0.00");
+        saveRecipe(vegan, "닭가슴살 구이", chicken, "1.00");
+
+        mockMvc.perform(get("/api/recipes/recommendations")
+                        .header("Authorization", bearer(vegan)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recommendations.length()").value(0));
+    }
+
+    @Test
     void recommendationsRequireHealthProfile() throws Exception {
         mockMvc.perform(get("/api/recipes/recommendations")
                         .header("Authorization", bearer(anotherUser)))

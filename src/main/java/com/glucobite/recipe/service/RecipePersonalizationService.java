@@ -1,8 +1,6 @@
 package com.glucobite.recipe.service;
 
-import com.glucobite.health.entity.Allergen;
 import com.glucobite.health.entity.HealthProfile;
-import com.glucobite.health.entity.VegetarianType;
 import com.glucobite.health.exception.HealthProfileNotFoundException;
 import com.glucobite.health.repository.HealthProfileRepository;
 import com.glucobite.ingredient.entity.Ingredient;
@@ -64,6 +62,7 @@ public class RecipePersonalizationService {
     private final IngredientSubstituteRepository ingredientSubstituteRepository;
     private final HealthProfileRepository healthProfileRepository;
     private final RecipeNutritionCalculator nutritionCalculator;
+    private final DietaryRestrictionPolicy dietaryRestrictionPolicy;
 
     public RecipePersonalizationService(
             RecipeRepository recipeRepository,
@@ -72,7 +71,8 @@ public class RecipePersonalizationService {
             IngredientNutritionRepository ingredientNutritionRepository,
             IngredientSubstituteRepository ingredientSubstituteRepository,
             HealthProfileRepository healthProfileRepository,
-            RecipeNutritionCalculator nutritionCalculator
+            RecipeNutritionCalculator nutritionCalculator,
+            DietaryRestrictionPolicy dietaryRestrictionPolicy
     ) {
         this.recipeRepository = recipeRepository;
         this.recipeStepRepository = recipeStepRepository;
@@ -81,6 +81,7 @@ public class RecipePersonalizationService {
         this.ingredientSubstituteRepository = ingredientSubstituteRepository;
         this.healthProfileRepository = healthProfileRepository;
         this.nutritionCalculator = nutritionCalculator;
+        this.dietaryRestrictionPolicy = dietaryRestrictionPolicy;
     }
 
     @Transactional(readOnly = true)
@@ -93,10 +94,10 @@ public class RecipePersonalizationService {
                 .map(RecipeStepResponse::from)
                 .toList();
 
-        ProfileRestrictions restrictions = restrictionsFor(profile);
+        Set<String> restrictedTerms = dietaryRestrictionPolicy.restrictedTerms(profile);
         Map<Long, IngredientSubstitute> autoSubstitutes = resolveAutoSubstitutes(
                 ingredients,
-                restrictions
+                restrictedTerms
         );
         Set<Long> nutritionIds = new HashSet<>();
         for (RecipeIngredient ingredient : ingredients) {
@@ -169,7 +170,7 @@ public class RecipePersonalizationService {
             Long ingredientId
     ) {
         findOwnedRecipe(userId, recipeId);
-        ProfileRestrictions restrictions = restrictionsFor(findHealthProfile(userId));
+        Set<String> restrictedTerms = dietaryRestrictionPolicy.restrictedTerms(findHealthProfile(userId));
         RecipeIngredient recipeIngredient = recipeIngredientRepository
                 .findByRecipeIdAndIngredientId(recipeId, ingredientId)
                 .orElseThrow(IngredientNotFoundException::new);
@@ -182,7 +183,9 @@ public class RecipePersonalizationService {
 
         List<IngredientSubstitute> substitutes = ingredientSubstituteRepository
                 .findByIngredientIdOrderByIdAsc(ingredientId).stream()
-                .filter(substitute -> !isRestricted(substitute.getSubstitute(), restrictions))
+                .filter(substitute -> !dietaryRestrictionPolicy.isRestricted(
+                        substitute.getSubstitute(), restrictedTerms
+                ))
                 .toList();
         Set<Long> substituteIngredientIds = substitutes.stream()
                 .map(substitute -> substitute.getSubstitute().getId())
@@ -281,7 +284,7 @@ public class RecipePersonalizationService {
             RecipeSubstitutionRequest request
     ) {
         Recipe recipe = findOwnedRecipe(userId, recipeId);
-        ProfileRestrictions restrictions = restrictionsFor(findHealthProfile(userId));
+        Set<String> restrictedTerms = dietaryRestrictionPolicy.restrictedTerms(findHealthProfile(userId));
         List<RecipeIngredient> ingredients = recipeIngredientRepository.findByRecipeId(recipeId);
         Map<Long, RecipeIngredient> ingredientsById = ingredients.stream()
                 .collect(Collectors.toMap(
@@ -308,7 +311,7 @@ public class RecipePersonalizationService {
                             item.substituteIngredientId()
                     )
                     .orElseThrow(InvalidSubstituteIngredientException::new);
-            if (isRestricted(registered.getSubstitute(), restrictions)) {
+            if (dietaryRestrictionPolicy.isRestricted(registered.getSubstitute(), restrictedTerms)) {
                 throw new InvalidSubstituteIngredientException();
             }
             substitutionsByOriginalId.put(
@@ -406,19 +409,21 @@ public class RecipePersonalizationService {
 
     private Map<Long, IngredientSubstitute> resolveAutoSubstitutes(
             List<RecipeIngredient> ingredients,
-            ProfileRestrictions restrictions
+            Set<String> restrictedTerms
     ) {
         Map<Long, IngredientSubstitute> substitutes = new java.util.LinkedHashMap<>();
-        if (restrictions.restrictedTerms().isEmpty()) {
+        if (restrictedTerms.isEmpty()) {
             return substitutes;
         }
         for (RecipeIngredient ingredient : ingredients) {
             Ingredient source = ingredient.getIngredient();
-            if (!isRestricted(source, restrictions)) {
+            if (!dietaryRestrictionPolicy.isRestricted(source, restrictedTerms)) {
                 continue;
             }
             ingredientSubstituteRepository.findByIngredientIdOrderByIdAsc(source.getId()).stream()
-                    .filter(substitute -> !isRestricted(substitute.getSubstitute(), restrictions))
+                    .filter(substitute -> !dietaryRestrictionPolicy.isRestricted(
+                            substitute.getSubstitute(), restrictedTerms
+                    ))
                     .findFirst()
                     .ifPresent(substitute -> substitutes.put(source.getId(), substitute));
         }
@@ -435,41 +440,6 @@ public class RecipePersonalizationService {
                 .orElseThrow(HealthProfileNotFoundException::new);
     }
 
-    private ProfileRestrictions restrictionsFor(HealthProfile profile) {
-        Set<String> restrictedTerms = toAllergenNames(profile.getAllergens());
-        restrictedTerms.addAll(vegetarianRestrictedTerms(profile.getVegetarianType()));
-        return new ProfileRestrictions(Set.copyOf(restrictedTerms));
-    }
-
-    private Set<String> vegetarianRestrictedTerms(VegetarianType vegetarianType) {
-        if (vegetarianType == null || vegetarianType == VegetarianType.NONE) {
-            return Set.of();
-        }
-        Set<String> meatAndSeafood = Set.of(
-                "돼지", "소고기", "쇠고기", "닭", "오리", "양고기",
-                "생선", "고등어", "연어", "참치", "새우", "게", "오징어", "조개"
-        );
-        if (vegetarianType == VegetarianType.PESCATARIAN) {
-            return Set.of("돼지", "소고기", "쇠고기", "닭", "오리", "양고기");
-        }
-        Set<String> restricted = new HashSet<>(meatAndSeafood);
-        if (vegetarianType == VegetarianType.VEGAN || vegetarianType == VegetarianType.OVO) {
-            restricted.addAll(Set.of("우유", "치즈", "버터", "요거트"));
-        }
-        if (vegetarianType == VegetarianType.VEGAN || vegetarianType == VegetarianType.LACTO) {
-            restricted.addAll(Set.of("달걀", "계란", "난류"));
-        }
-        if (vegetarianType == VegetarianType.VEGAN) {
-            restricted.add("꿀");
-        }
-        return restricted;
-    }
-
-    private boolean isRestricted(Ingredient ingredient, ProfileRestrictions restrictions) {
-        String title = ingredient.getTitle();
-        return restrictions.restrictedTerms().stream().anyMatch(title::contains);
-    }
-
     private Map<Long, IngredientNutrition> loadNutritionMap(Collection<Long> ingredientIds) {
         if (ingredientIds.isEmpty()) {
             return Map.of();
@@ -479,17 +449,6 @@ public class RecipePersonalizationService {
                         nutrition -> nutrition.getIngredient().getId(),
                         nutrition -> nutrition
                 ));
-    }
-
-    private Set<String> toAllergenNames(Set<Allergen> allergens) {
-        Set<String> names = new HashSet<>();
-        for (Allergen allergen : allergens) {
-            names.add(allergen.getName());
-        }
-        return names;
-    }
-
-    private record ProfileRestrictions(Set<String> restrictedTerms) {
     }
 
     private record AppliedSubstitution(

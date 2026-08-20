@@ -1,6 +1,5 @@
 package com.glucobite.recipe.service;
 
-import com.glucobite.health.entity.Allergen;
 import com.glucobite.health.entity.HealthProfile;
 import com.glucobite.health.exception.HealthProfileNotFoundException;
 import com.glucobite.health.repository.HealthProfileRepository;
@@ -32,7 +31,6 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,6 +54,7 @@ public class RecipeService {
     private final IngredientNutritionRepository ingredientNutritionRepository;
     private final HealthProfileRepository healthProfileRepository;
     private final RecipeNutritionCalculator nutritionCalculator;
+    private final DietaryRestrictionPolicy dietaryRestrictionPolicy;
 
     public RecipeService(
             RecipeRepository recipeRepository,
@@ -63,7 +62,8 @@ public class RecipeService {
             RecipeIngredientRepository recipeIngredientRepository,
             IngredientNutritionRepository ingredientNutritionRepository,
             HealthProfileRepository healthProfileRepository,
-            RecipeNutritionCalculator nutritionCalculator
+            RecipeNutritionCalculator nutritionCalculator,
+            DietaryRestrictionPolicy dietaryRestrictionPolicy
     ) {
         this.recipeRepository = recipeRepository;
         this.recipeStepRepository = recipeStepRepository;
@@ -71,6 +71,7 @@ public class RecipeService {
         this.ingredientNutritionRepository = ingredientNutritionRepository;
         this.healthProfileRepository = healthProfileRepository;
         this.nutritionCalculator = nutritionCalculator;
+        this.dietaryRestrictionPolicy = dietaryRestrictionPolicy;
     }
 
     @Transactional(readOnly = true)
@@ -115,7 +116,7 @@ public class RecipeService {
     public RecipeRecommendationResponse getRecommendations(Long userId) {
         HealthProfile profile = healthProfileRepository.findByUserId(userId)
                 .orElseThrow(HealthProfileNotFoundException::new);
-        Set<String> allergenNames = toAllergenNames(profile.getAllergens());
+        Set<String> restrictedTerms = dietaryRestrictionPolicy.restrictedTerms(profile);
 
         List<Recipe> recipes = recipeRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId);
         List<Long> recipeIds = recipes.stream().map(Recipe::getId).toList();
@@ -127,7 +128,7 @@ public class RecipeService {
         List<RecipeRecommendationItemResponse> recommendations = new ArrayList<>();
         for (Recipe recipe : recipes) {
             List<RecipeIngredient> ingredients = ingredientsByRecipe.getOrDefault(recipe.getId(), List.of());
-            if (containsRestrictedIngredient(ingredients, allergenNames)) {
+            if (containsRestrictedIngredient(ingredients, restrictedTerms)) {
                 continue;
             }
             NutritionSummary total = totalNutrition(ingredients, nutritionMap);
@@ -204,19 +205,14 @@ public class RecipeService {
         return grouped;
     }
 
-    private Set<String> toAllergenNames(Set<Allergen> allergens) {
-        return allergens.stream()
-                .map(Allergen::getName)
-                .collect(Collectors.toCollection(HashSet::new));
-    }
-
     private boolean containsRestrictedIngredient(
             List<RecipeIngredient> ingredients,
-            Set<String> allergenNames
+            Set<String> restrictedTerms
     ) {
         for (RecipeIngredient recipeIngredient : ingredients) {
-            String title = recipeIngredient.getIngredient().getTitle();
-            if (allergenNames.stream().anyMatch(title::contains)) {
+            if (dietaryRestrictionPolicy.isRestricted(
+                    recipeIngredient.getIngredient(), restrictedTerms
+            )) {
                 return true;
             }
         }
