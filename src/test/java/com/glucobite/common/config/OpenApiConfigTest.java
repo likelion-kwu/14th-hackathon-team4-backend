@@ -320,4 +320,18 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.components.schemas.CreateGlucoseRecordRequest.properties.context.enum")
                         .isArray());
     }
+
+    @Test
+    void documentsTodaySummaryContract() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/dashboard/today'].get.summary")
+                        .value("오늘 요약"))
+                .andExpect(jsonPath("$.paths['/api/dashboard/today'].get.security[0].bearerAuth")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.TodaySummaryResponse.properties.carbProgressPercent")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.TodaySummaryResponse.properties.averageGlucose")
+                        .exists());
+    }
 }
