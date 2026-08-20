@@ -61,19 +61,26 @@ class RecipePersonalizationIntegrationTest {
     private Ingredient pork;
     private Ingredient milk;
     private Ingredient chicken;
+    private Ingredient rice;
+    private Ingredient cauliflower;
 
     @BeforeEach
     void setUp() {
         cleanUp();
-        pork = saveIngredient("돼지고기", "250.00", "20.00");
-        milk = saveIngredient("우유", "60.00", "3.00");
-        chicken = saveIngredient("닭가슴살", "165.00", "31.00");
+        pork = saveIngredient("돼지고기", "250.00", "0.00", "20.00");
+        milk = saveIngredient("우유", "60.00", "0.00", "3.00");
+        chicken = saveIngredient("닭가슴살", "165.00", "0.00", "31.00");
+        rice = saveIngredient("쌀", "100.00", "25.00", "2.00");
+        cauliflower = saveIngredient("콜리플라워", "25.00", "5.00", "2.00");
 
         ingredientSubstituteRepository.save(new IngredientSubstitute(
                 pork, milk, new BigDecimal("1.0000"), "첫 번째지만 알레르기 후보"
         ));
         ingredientSubstituteRepository.save(new IngredientSubstitute(
                 pork, chicken, new BigDecimal("0.8000"), "안전한 저지방 후보"
+        ));
+        ingredientSubstituteRepository.save(new IngredientSubstitute(
+                rice, cauliflower, new BigDecimal("1.0000"), "탄수화물 감소 후보"
         ));
 
         owner = userRepository.save(new User("personal-owner", "encoded-password", "소유자"));
@@ -82,6 +89,7 @@ class RecipePersonalizationIntegrationTest {
 
         recipe = recipeRepository.save(new Recipe(owner, "돼지고기 볶음", null, 20));
         recipeIngredientRepository.save(new RecipeIngredient(recipe, pork, BigDecimal.ONE));
+        recipeIngredientRepository.save(new RecipeIngredient(recipe, rice, BigDecimal.ONE));
     }
 
     @AfterEach
@@ -112,9 +120,11 @@ class RecipePersonalizationIntegrationTest {
 
     @Test
     void rejectsApplyingCandidateRestrictedByProfile() throws Exception {
-        String body = substituteBody(pork.getId(), milk.getId(), "1.00");
+        String body = substitutionBody(
+                substitutionItem(pork.getId(), milk.getId(), "1.00")
+        );
 
-        mockMvc.perform(post("/api/recipes/{id}/ingredients/substitute", recipe.getId())
+        mockMvc.perform(post("/api/recipes/{id}/substitutions/preview", recipe.getId())
                         .header("Authorization", bearer(owner))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
@@ -123,28 +133,80 @@ class RecipePersonalizationIntegrationTest {
     }
 
     @Test
-    void appliesSafeSubstituteWithoutUpdatingOriginalRecipe() throws Exception {
-        String body = substituteBody(pork.getId(), chicken.getId(), "0.80");
+    void previewsAllSubstitutionsTogetherWithoutUpdatingOriginalRecipe() throws Exception {
+        String body = substitutionBody(
+                substitutionItem(pork.getId(), chicken.getId(), "0.80"),
+                substitutionItem(rice.getId(), cauliflower.getId(), "1.00")
+        );
 
-        mockMvc.perform(post("/api/recipes/{id}/ingredients/substitute", recipe.getId())
+        mockMvc.perform(post("/api/recipes/{id}/substitutions/preview", recipe.getId())
                         .header("Authorization", bearer(owner))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.changedIngredient.substituteIngredient.ingredientId")
+                .andExpect(jsonPath("$.changedIngredients.length()").value(2))
+                .andExpect(jsonPath("$.changedIngredients[0].substituteIngredient.ingredientId")
                         .value(chicken.getId()))
-                .andExpect(jsonPath("$.nutrition.calories").value(132.0000));
+                .andExpect(jsonPath("$.changedIngredients[1].substituteIngredient.ingredientId")
+                        .value(cauliflower.getId()))
+                .andExpect(jsonPath("$.personalizedNutrition.calories").value(157.0000))
+                .andExpect(jsonPath("$.personalizedNutrition.carb").value(5.0000));
 
         mockMvc.perform(get("/api/recipes/{id}", recipe.getId())
                         .header("Authorization", bearer(owner)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ingredients[0].ingredientId").value(pork.getId()));
+                .andExpect(jsonPath("$.ingredients[*].ingredientId")
+                        .value(org.hamcrest.Matchers.containsInAnyOrder(
+                                pork.getId().intValue(), rice.getId().intValue()
+                        )));
+    }
+
+    @Test
+    void rejectsDuplicateOriginalIngredientInOnePreview() throws Exception {
+        String body = substitutionBody(
+                substitutionItem(pork.getId(), chicken.getId(), "0.80"),
+                substitutionItem(pork.getId(), chicken.getId(), "0.90")
+        );
+
+        mockMvc.perform(post("/api/recipes/{id}/substitutions/preview", recipe.getId())
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_RECIPE_SUBSTITUTION"));
+    }
+
+    @Test
+    void rejectsDuplicateIngredientInFinalResult() throws Exception {
+        recipeIngredientRepository.save(new RecipeIngredient(recipe, chicken, BigDecimal.ONE));
+        String body = substitutionBody(
+                substitutionItem(pork.getId(), chicken.getId(), "0.80")
+        );
+
+        mockMvc.perform(post("/api/recipes/{id}/substitutions/preview", recipe.getId())
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_RECIPE_SUBSTITUTION"));
+    }
+
+    @Test
+    void rejectsEmptySubstitutionList() throws Exception {
+        mockMvc.perform(post("/api/recipes/{id}/substitutions/preview", recipe.getId())
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"substitutions\":[]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
     @Test
     void hidesPersonalizationEndpointsFromNonOwner() throws Exception {
         String token = bearer(anotherUser);
-        String body = substituteBody(pork.getId(), chicken.getId(), "0.80");
+        String body = substitutionBody(
+                substitutionItem(pork.getId(), chicken.getId(), "0.80")
+        );
 
         mockMvc.perform(get("/api/recipes/{id}/personalized", recipe.getId())
                         .header("Authorization", token))
@@ -158,7 +220,7 @@ class RecipePersonalizationIntegrationTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RECIPE_NOT_FOUND"));
 
-        mockMvc.perform(post("/api/recipes/{id}/ingredients/substitute", recipe.getId())
+        mockMvc.perform(post("/api/recipes/{id}/substitutions/preview", recipe.getId())
                         .header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
@@ -193,10 +255,10 @@ class RecipePersonalizationIntegrationTest {
                 .andExpect(jsonPath("$.ingredients[0].changed").value(false));
     }
 
-    private Ingredient saveIngredient(String title, String calories, String protein) {
+    private Ingredient saveIngredient(String title, String calories, String carb, String protein) {
         Ingredient ingredient = ingredientRepository.save(new Ingredient(title));
         ingredientNutritionRepository.save(new IngredientNutrition(
-                ingredient, new BigDecimal(calories), BigDecimal.ZERO,
+                ingredient, new BigDecimal(calories), new BigDecimal(carb),
                 new BigDecimal(protein), BigDecimal.ZERO, BigDecimal.ZERO
         ));
         return ingredient;
@@ -213,7 +275,15 @@ class RecipePersonalizationIntegrationTest {
         ));
     }
 
-    private String substituteBody(Long originalId, Long substituteId, String amount) {
+    private String substitutionBody(String... items) {
+        return """
+                {
+                  "substitutions": [%s]
+                }
+                """.formatted(String.join(",", items));
+    }
+
+    private String substitutionItem(Long originalId, Long substituteId, String amount) {
         return """
                 {
                   "originalIngredientId": %d,

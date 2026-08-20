@@ -5,6 +5,7 @@ import com.glucobite.auth.exception.InvalidAllergenException;
 import com.glucobite.auth.exception.InvalidCredentialsException;
 import com.glucobite.health.exception.HealthProfileNotFoundException;
 import com.glucobite.recipe.exception.IngredientNotFoundException;
+import com.glucobite.recipe.exception.InvalidRecipeSubstitutionException;
 import com.glucobite.recipe.exception.InvalidSubstituteIngredientException;
 import com.glucobite.recipe.exception.RecipeIngredientNotFoundException;
 import com.glucobite.recipe.exception.RecipeNotFoundException;
@@ -144,6 +145,16 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity.badRequest().body(ApiErrorResponse.of(
                 "INVALID_SUBSTITUTE_INGREDIENT",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(InvalidRecipeSubstitutionException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidRecipeSubstitution(
+            InvalidRecipeSubstitutionException exception
+    ) {
+        return ResponseEntity.badRequest().body(ApiErrorResponse.of(
+                "INVALID_RECIPE_SUBSTITUTION",
                 exception.getMessage()
         ));
     }

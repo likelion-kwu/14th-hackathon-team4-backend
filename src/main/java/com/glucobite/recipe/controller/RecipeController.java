@@ -2,14 +2,14 @@ package com.glucobite.recipe.controller;
 
 import com.glucobite.common.config.OpenApiConfig;
 import com.glucobite.common.exception.ApiErrorResponse;
-import com.glucobite.recipe.dto.ApplySubstituteRequest;
-import com.glucobite.recipe.dto.ApplySubstituteResponse;
 import com.glucobite.recipe.dto.IngredientAlternativeListResponse;
 import com.glucobite.recipe.dto.PersonalizedRecipeDetailResponse;
 import com.glucobite.recipe.dto.RecipeDetailResponse;
 import com.glucobite.recipe.dto.RecipePageResponse;
 import com.glucobite.recipe.dto.RecipeRecommendationResponse;
 import com.glucobite.recipe.dto.RecipeStepListResponse;
+import com.glucobite.recipe.dto.RecipeSubstitutionPreviewResponse;
+import com.glucobite.recipe.dto.RecipeSubstitutionRequest;
 import com.glucobite.recipe.service.RecipeService;
 import com.glucobite.recipe.service.RecipePersonalizationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -182,25 +182,25 @@ public class RecipeController {
         return personalizationService.getAlternatives(parseUserId(jwt), recipeId, ingredientId);
     }
 
-    @PostMapping("/{recipeId}/ingredients/substitute")
-    @Operation(summary = "대체 재료 적용",
-            description = "건강 프로필에 안전한 등록 대체 재료를 적용해 결과를 계산합니다. 원본은 변경하지 않습니다.")
+    @PostMapping("/{recipeId}/substitutions/preview")
+    @Operation(summary = "복수 대체 재료 미리보기",
+            description = "현재까지 선택한 전체 대체 항목을 적용해 누적 결과를 계산합니다. 원본은 변경하지 않습니다.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "적용 성공",
-                    content = @Content(schema = @Schema(implementation = ApplySubstituteResponse.class))),
-            @ApiResponse(responseCode = "400", description = "잘못된 요청 또는 안전하지 않은 대체 재료",
+            @ApiResponse(responseCode = "200", description = "미리보기 성공",
+                    content = @Content(schema = @Schema(implementation = RecipeSubstitutionPreviewResponse.class))),
+            @ApiResponse(responseCode = "400", description = "중복, 충돌 또는 안전하지 않은 대체 재료",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
             @ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "소유한 레시피, 재료 또는 건강 프로필이 없음",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
-    public ApplySubstituteResponse applySubstitute(
+    public RecipeSubstitutionPreviewResponse previewSubstitutions(
             @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
             @PathVariable Long recipeId,
-            @Valid @RequestBody ApplySubstituteRequest request
+            @Valid @RequestBody RecipeSubstitutionRequest request
     ) {
-        return personalizationService.applySubstitute(parseUserId(jwt), recipeId, request);
+        return personalizationService.previewSubstitutions(parseUserId(jwt), recipeId, request);
     }
 
     private Long parseUserId(Jwt jwt) {

@@ -10,9 +10,8 @@ import com.glucobite.ingredient.entity.IngredientNutrition;
 import com.glucobite.ingredient.entity.IngredientSubstitute;
 import com.glucobite.ingredient.repository.IngredientNutritionRepository;
 import com.glucobite.ingredient.repository.IngredientSubstituteRepository;
-import com.glucobite.recipe.dto.ApplySubstituteRequest;
-import com.glucobite.recipe.dto.ApplySubstituteResponse;
 import com.glucobite.recipe.dto.ChangedIngredientResponse;
+import com.glucobite.recipe.dto.IngredientSubstitutionRequest;
 import com.glucobite.recipe.dto.IngredientAlternativeListResponse;
 import com.glucobite.recipe.dto.IngredientAlternativeResponse;
 import com.glucobite.recipe.dto.NutritionSummary;
@@ -20,9 +19,12 @@ import com.glucobite.recipe.dto.PersonalizedIngredientResponse;
 import com.glucobite.recipe.dto.PersonalizedRecipeDetailResponse;
 import com.glucobite.recipe.dto.RecipeIngredientResponse;
 import com.glucobite.recipe.dto.RecipeStepResponse;
+import com.glucobite.recipe.dto.RecipeSubstitutionPreviewResponse;
+import com.glucobite.recipe.dto.RecipeSubstitutionRequest;
 import com.glucobite.recipe.entity.Recipe;
 import com.glucobite.recipe.entity.RecipeIngredient;
 import com.glucobite.recipe.exception.IngredientNotFoundException;
+import com.glucobite.recipe.exception.InvalidRecipeSubstitutionException;
 import com.glucobite.recipe.exception.InvalidSubstituteIngredientException;
 import com.glucobite.recipe.exception.RecipeIngredientNotFoundException;
 import com.glucobite.recipe.exception.RecipeNotFoundException;
@@ -36,6 +38,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -45,9 +48,10 @@ import java.util.stream.Collectors;
 @Service
 public class RecipePersonalizationService {
 
-    private static final String APPLY_SUCCESS_MESSAGE = "대체 재료가 적용되었습니다.";
     private static final String FALLBACK_AUTO_CHANGE_REASON =
             "회원님의 알레르기 정보를 반영해 자동 대체되었습니다.";
+    private static final String FALLBACK_MANUAL_CHANGE_REASON =
+            "선택한 대체 재료가 적용되었습니다.";
 
     private final RecipeRepository recipeRepository;
     private final RecipeStepRepository recipeStepRepository;
@@ -205,68 +209,149 @@ public class RecipePersonalizationService {
     }
 
     @Transactional(readOnly = true)
-    public ApplySubstituteResponse applySubstitute(
+    public RecipeSubstitutionPreviewResponse previewSubstitutions(
             Long userId,
             Long recipeId,
-            ApplySubstituteRequest request
+            RecipeSubstitutionRequest request
     ) {
-        findOwnedRecipe(userId, recipeId);
+        SubstitutionCalculation calculation = calculateSubstitutions(userId, recipeId, request);
+        return new RecipeSubstitutionPreviewResponse(
+                calculation.recipe().getId(),
+                calculation.originalNutrition(),
+                calculation.personalizedNutrition(),
+                calculation.nutritionChanges(),
+                calculation.changedIngredients(),
+                toPersonalizedIngredientResponses(calculation.finalIngredients())
+        );
+    }
+
+    private SubstitutionCalculation calculateSubstitutions(
+            Long userId,
+            Long recipeId,
+            RecipeSubstitutionRequest request
+    ) {
+        Recipe recipe = findOwnedRecipe(userId, recipeId);
         ProfileRestrictions restrictions = restrictionsFor(findHealthProfile(userId));
         List<RecipeIngredient> ingredients = recipeIngredientRepository.findByRecipeId(recipeId);
-        RecipeIngredient target = ingredients.stream()
-                .filter(ingredient -> ingredient.getIngredient().getId().equals(request.originalIngredientId()))
-                .findFirst()
-                .orElseThrow(RecipeIngredientNotFoundException::new);
+        Map<Long, RecipeIngredient> ingredientsById = ingredients.stream()
+                .collect(Collectors.toMap(
+                        ingredient -> ingredient.getIngredient().getId(),
+                        ingredient -> ingredient,
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ));
 
-        IngredientSubstitute registered = ingredientSubstituteRepository
-                .findByIngredientIdAndSubstituteId(request.originalIngredientId(), request.substituteIngredientId())
-                .orElseThrow(InvalidSubstituteIngredientException::new);
-        if (isRestricted(registered.getSubstitute(), restrictions)) {
-            throw new InvalidSubstituteIngredientException();
+        Map<Long, AppliedSubstitution> substitutionsByOriginalId = new LinkedHashMap<>();
+        for (IngredientSubstitutionRequest item : request.substitutions()) {
+            RecipeIngredient original = ingredientsById.get(item.originalIngredientId());
+            if (original == null) {
+                throw new RecipeIngredientNotFoundException();
+            }
+            if (substitutionsByOriginalId.containsKey(item.originalIngredientId())) {
+                throw new InvalidRecipeSubstitutionException(
+                        "동일한 원본 재료를 두 번 이상 대체할 수 없습니다."
+                );
+            }
+            IngredientSubstitute registered = ingredientSubstituteRepository
+                    .findByIngredientIdAndSubstituteId(
+                            item.originalIngredientId(),
+                            item.substituteIngredientId()
+                    )
+                    .orElseThrow(InvalidSubstituteIngredientException::new);
+            if (isRestricted(registered.getSubstitute(), restrictions)) {
+                throw new InvalidSubstituteIngredientException();
+            }
+            substitutionsByOriginalId.put(
+                    item.originalIngredientId(),
+                    new AppliedSubstitution(registered, item.amount())
+            );
         }
 
-        Set<Long> lookupIds = new HashSet<>();
-        for (RecipeIngredient ingredient : ingredients) {
-            lookupIds.add(ingredient.getIngredient().getId());
-        }
-        lookupIds.add(registered.getSubstitute().getId());
-        Map<Long, IngredientNutrition> nutritionMap = loadNutritionMap(lookupIds);
+        Set<Long> nutritionIds = ingredients.stream()
+                .map(ingredient -> ingredient.getIngredient().getId())
+                .collect(Collectors.toSet());
+        substitutionsByOriginalId.values().stream()
+                .map(applied -> applied.registered().getSubstitute().getId())
+                .forEach(nutritionIds::add);
+        Map<Long, IngredientNutrition> nutritionMap = loadNutritionMap(nutritionIds);
 
-        NutritionSummary originalTotal = totalNutrition(ingredients, nutritionMap);
-        BigDecimal appliedAmount = request.amount();
-        Ingredient substituteIngredient = registered.getSubstitute();
-        IngredientNutrition substituteNutrition = nutritionMap.get(substituteIngredient.getId());
-        NutritionSummary substituteContribution = nutritionCalculator
-                .contribute(substituteNutrition, appliedAmount);
-        NutritionSummary originalContribution = nutritionCalculator
-                .contribute(nutritionMap.get(target.getIngredient().getId()), target.getAmount());
-        NutritionSummary personalizedTotal = nutritionCalculator.sum(List.of(
+        Set<Long> finalIngredientIds = new HashSet<>();
+        List<FinalIngredient> finalIngredients = new ArrayList<>();
+        List<ChangedIngredientResponse> changedIngredients = new ArrayList<>();
+        List<NutritionSummary> originalContributions = new ArrayList<>();
+        List<NutritionSummary> personalizedContributions = new ArrayList<>();
+
+        for (RecipeIngredient original : ingredients) {
+            Ingredient originalIngredient = original.getIngredient();
+            originalContributions.add(nutritionCalculator.contribute(
+                    nutritionMap.get(originalIngredient.getId()),
+                    original.getAmount()
+            ));
+
+            AppliedSubstitution applied = substitutionsByOriginalId.get(originalIngredient.getId());
+            Ingredient finalIngredient = applied == null
+                    ? originalIngredient
+                    : applied.registered().getSubstitute();
+            BigDecimal finalAmount = applied == null ? original.getAmount() : applied.amount();
+            if (!finalIngredientIds.add(finalIngredient.getId())) {
+                throw new InvalidRecipeSubstitutionException(
+                        "대체 결과에 동일한 재료가 중복될 수 없습니다."
+                );
+            }
+
+            String reason = null;
+            if (applied != null) {
+                reason = Optional.ofNullable(applied.registered().getReason())
+                        .orElse(FALLBACK_MANUAL_CHANGE_REASON);
+                changedIngredients.add(new ChangedIngredientResponse(
+                        new RecipeIngredientResponse(
+                                originalIngredient.getId(),
+                                originalIngredient.getTitle(),
+                                original.getAmount()
+                        ),
+                        new RecipeIngredientResponse(
+                                finalIngredient.getId(),
+                                finalIngredient.getTitle(),
+                                finalAmount
+                        )
+                ));
+            }
+            finalIngredients.add(new FinalIngredient(
+                    finalIngredient,
+                    finalAmount,
+                    applied != null,
+                    reason
+            ));
+            personalizedContributions.add(nutritionCalculator.contribute(
+                    nutritionMap.get(finalIngredient.getId()),
+                    finalAmount
+            ));
+        }
+
+        NutritionSummary originalTotal = nutritionCalculator.sum(originalContributions);
+        NutritionSummary personalizedTotal = nutritionCalculator.sum(personalizedContributions);
+        return new SubstitutionCalculation(
+                recipe,
                 originalTotal,
-                nutritionCalculator.changes(originalContribution, substituteContribution)
-        ));
-        NutritionSummary changes = nutritionCalculator.changes(originalTotal, personalizedTotal);
-
-        Ingredient originalIngredient = target.getIngredient();
-        ChangedIngredientResponse changed = new ChangedIngredientResponse(
-                new RecipeIngredientResponse(
-                        originalIngredient.getId(),
-                        originalIngredient.getTitle(),
-                        target.getAmount()
-                ),
-                new RecipeIngredientResponse(
-                        substituteIngredient.getId(),
-                        substituteIngredient.getTitle(),
-                        appliedAmount
-                )
-        );
-
-        return new ApplySubstituteResponse(
-                recipeId,
-                APPLY_SUCCESS_MESSAGE,
-                changed,
                 personalizedTotal,
-                changes
+                nutritionCalculator.changes(originalTotal, personalizedTotal),
+                List.copyOf(changedIngredients),
+                List.copyOf(finalIngredients)
         );
+    }
+
+    private List<PersonalizedIngredientResponse> toPersonalizedIngredientResponses(
+            List<FinalIngredient> finalIngredients
+    ) {
+        return finalIngredients.stream()
+                .map(item -> new PersonalizedIngredientResponse(
+                        item.ingredient().getId(),
+                        item.ingredient().getTitle(),
+                        item.amount(),
+                        item.changed(),
+                        item.changeReason()
+                ))
+                .toList();
     }
 
     private Map<Long, IngredientSubstitute> resolveAutoSubstitutes(
@@ -346,18 +431,6 @@ public class RecipePersonalizationService {
                 ));
     }
 
-    private NutritionSummary totalNutrition(
-            List<RecipeIngredient> ingredients,
-            Map<Long, IngredientNutrition> nutritionMap
-    ) {
-        List<NutritionSummary> contributions = new ArrayList<>();
-        for (RecipeIngredient ingredient : ingredients) {
-            IngredientNutrition nutrition = nutritionMap.get(ingredient.getIngredient().getId());
-            contributions.add(nutritionCalculator.contribute(nutrition, ingredient.getAmount()));
-        }
-        return nutritionCalculator.sum(contributions);
-    }
-
     private Set<String> toAllergenNames(Set<Allergen> allergens) {
         Set<String> names = new HashSet<>();
         for (Allergen allergen : allergens) {
@@ -367,5 +440,29 @@ public class RecipePersonalizationService {
     }
 
     private record ProfileRestrictions(Set<String> restrictedTerms) {
+    }
+
+    private record AppliedSubstitution(
+            IngredientSubstitute registered,
+            BigDecimal amount
+    ) {
+    }
+
+    private record FinalIngredient(
+            Ingredient ingredient,
+            BigDecimal amount,
+            boolean changed,
+            String changeReason
+    ) {
+    }
+
+    private record SubstitutionCalculation(
+            Recipe recipe,
+            NutritionSummary originalNutrition,
+            NutritionSummary personalizedNutrition,
+            NutritionSummary nutritionChanges,
+            List<ChangedIngredientResponse> changedIngredients,
+            List<FinalIngredient> finalIngredients
+    ) {
     }
 }

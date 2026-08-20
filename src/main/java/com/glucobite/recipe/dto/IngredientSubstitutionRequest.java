@@ -7,12 +7,12 @@ import jakarta.validation.constraints.Positive;
 
 import java.math.BigDecimal;
 
-@Schema(description = "대체 재료 적용 요청")
-public record ApplySubstituteRequest(
-        @Schema(description = "레시피의 기존 재료 ID", example = "5")
+@Schema(description = "재료 대체 항목")
+public record IngredientSubstitutionRequest(
+        @Schema(description = "원본 레시피에 포함된 재료 ID", example = "5")
         @NotNull @Positive Long originalIngredientId,
 
-        @Schema(description = "대체할 재료 ID", example = "6")
+        @Schema(description = "대체할 등록 재료 ID", example = "6")
         @NotNull @Positive Long substituteIngredientId,
 
         @Schema(description = "대체 재료 사용량", example = "150.0")
