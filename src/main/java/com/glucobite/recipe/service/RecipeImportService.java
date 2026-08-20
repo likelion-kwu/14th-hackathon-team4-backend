@@ -40,6 +40,7 @@ public class RecipeImportService {
     private static final int MAX_STEPS = 100;
     private static final BigDecimal MAX_AMOUNT_GRAMS = new BigDecimal("100000.00");
     private static final BigDecimal MAX_NUTRITION_PER_GRAM = new BigDecimal("1000000.00");
+    private static final int NUTRITION_PER_GRAM_SCALE = 6;
 
     private final RecipeTextAnalyzer analyzer;
     private final UserRepository userRepository;
@@ -110,7 +111,6 @@ public class RecipeImportService {
         NutritionSummary totalNutrition = nutritionCalculator.sum(resolvedIngredients.stream()
                 .map(item -> nutritionCalculator.contribute(item.nutrition(), item.amount()))
                 .toList());
-
         Recipe recipe = recipeRepository.save(new Recipe(
                 user,
                 analyzed.title().trim(),
@@ -192,13 +192,13 @@ public class RecipeImportService {
     private IngredientNutrition toEntity(Ingredient ingredient, NutritionSummary nutrition) {
         return new IngredientNutrition(
                 ingredient,
-                scale(nutrition.calories()),
-                scale(nutrition.carb()),
-                scale(nutrition.protein()),
-                scale(nutrition.fat()),
-                scale(nutrition.fiber()),
-                scale(nutrition.sugar()),
-                scale(nutrition.sodium())
+                scaleNutritionPerGram(nutrition.calories()),
+                scaleNutritionPerGram(nutrition.carb()),
+                scaleNutritionPerGram(nutrition.protein()),
+                scaleNutritionPerGram(nutrition.fat()),
+                scaleNutritionPerGram(nutrition.fiber()),
+                scaleNutritionPerGram(nutrition.sugar()),
+                scaleNutritionPerGram(nutrition.sodium())
         );
     }
 
@@ -290,6 +290,10 @@ public class RecipeImportService {
 
     private BigDecimal scale(BigDecimal value) {
         return value.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal scaleNutritionPerGram(BigDecimal value) {
+        return value.setScale(NUTRITION_PER_GRAM_SCALE, RoundingMode.HALF_UP);
     }
 
     private InvalidRecipeAnalysisException invalid(String message) {

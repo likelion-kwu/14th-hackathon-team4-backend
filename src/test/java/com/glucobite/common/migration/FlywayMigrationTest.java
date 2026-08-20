@@ -124,6 +124,24 @@ class FlywayMigrationTest {
         ));
     }
 
+    @Test
+    void appliesIngredientNutritionPrecisionMigration() {
+        assertTrue(isApplied("9"));
+        assertEquals(7L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_name = 'ingredient_nutritions'
+                  AND column_name IN (
+                    'calories', 'carb', 'protein', 'fat', 'fiber', 'sugar', 'sodium'
+                  )
+                  AND numeric_precision = 14
+                  AND numeric_scale = 6
+                """,
+                Long.class
+        ));
+    }
+
     private boolean isApplied(String version) {
         return List.of(flyway.info().applied()).stream()
                 .anyMatch(migration -> version.equals(migration.getVersion().getVersion()));

@@ -143,6 +143,34 @@ class RecipeImportIntegrationTest {
     }
 
     @Test
+    void preservesSmallPerGramNutritionValues() throws Exception {
+        given(recipeTextAnalyzer.analyze(any())).willReturn(new AnalyzedRecipe(
+                "미량 영양 레시피", null, 10,
+                List.of(ingredient(
+                        "채소", "100", "0.200001", "0.030001", "0.010001",
+                        "0.004001", "0.003001", "0.002001", "0.001001"
+                )),
+                List.of("채소를 익힌다.")
+        ));
+
+        mockMvc.perform(post("/api/recipes/import/text")
+                        .header("Authorization", bearer())
+                        .contentType("application/json")
+                        .content("{\"text\":\"미량 영양 레시피\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.nutrition.fat").value(0.40))
+                .andExpect(jsonPath("$.nutrition.fiber").value(0.30))
+                .andExpect(jsonPath("$.nutrition.sugar").value(0.20))
+                .andExpect(jsonPath("$.nutrition.sodium").value(0.10));
+
+        IngredientNutrition saved = ingredientNutritionRepository.findAll().getFirst();
+        assertThat(saved.getFat()).isEqualByComparingTo("0.004001");
+        assertThat(saved.getFiber()).isEqualByComparingTo("0.003001");
+        assertThat(saved.getSugar()).isEqualByComparingTo("0.002001");
+        assertThat(saved.getSodium()).isEqualByComparingTo("0.001001");
+    }
+
+    @Test
     void mergesDuplicateIngredientNamesBeforeSaving() throws Exception {
         given(recipeTextAnalyzer.analyze(any())).willReturn(new AnalyzedRecipe(
                 "두부 요리", null, 10,
