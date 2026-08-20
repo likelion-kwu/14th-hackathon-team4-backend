@@ -43,6 +43,29 @@ class YouTubePlayerPageParserTest {
     }
 
     @Test
+    void extractsInnerTubeApiKey() {
+        assertThat(parser.extractInnerTubeApiKey(
+                "{\"INNERTUBE_API_KEY\":\"AIza-test_key123\"}"
+        )).isEqualTo("AIza-test_key123");
+    }
+
+    @Test
+    void prefersOriginalAsrTrackOverTranslatedTrack() {
+        YouTubePlayerPageParser.PlayerData result = parser.parsePlayerJson("""
+                {
+                  "playabilityStatus":{"status":"OK"},
+                  "videoDetails":{"title":"영어 영상"},
+                  "captions":{"playerCaptionsTracklistRenderer":{"captionTracks":[
+                    {"baseUrl":"https://www.youtube.com/api/timedtext?v=test&lang=en&translated=true","languageCode":"en"},
+                    {"baseUrl":"https://www.youtube.com/api/timedtext?v=test&lang=en&kind=asr","languageCode":"en","kind":"asr"}
+                  ]}}
+                }
+                """);
+
+        assertThat(result.transcriptUrl()).contains("kind=asr");
+    }
+
+    @Test
     void parsesAndDecodesTranscriptXml() {
         String result = parser.parseTranscript("""
                 <?xml version="1.0" encoding="utf-8" ?>
@@ -106,4 +129,5 @@ class YouTubePlayerPageParserTest {
 
         assertThat(result.thumbnailUrl()).isNull();
     }
+
 }

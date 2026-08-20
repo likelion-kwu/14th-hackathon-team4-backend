@@ -16,11 +16,16 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
 public class YouTubePlayerPageParser {
 
     private static final int MAX_TRANSCRIPT_CHARS = 50_000;
+    private static final Pattern INNERTUBE_API_KEY_PATTERN = Pattern.compile(
+            "\\\"INNERTUBE_API_KEY\\\":\\\"([A-Za-z0-9_-]+)\\\""
+    );
 
     private final ObjectMapper objectMapper;
 
@@ -29,8 +34,11 @@ public class YouTubePlayerPageParser {
     }
 
     public PlayerData parsePlayerData(String page) {
+        return parsePlayerJson(extractPlayerJson(page));
+    }
+
+    public PlayerData parsePlayerJson(String playerJson) {
         try {
-            String playerJson = extractPlayerJson(page);
             JsonNode root = objectMapper.readTree(playerJson);
             String status = text(root.path("playabilityStatus").path("status"));
             if (status != null && !"OK".equals(status)) {
@@ -52,6 +60,14 @@ public class YouTubePlayerPageParser {
         } catch (RuntimeException exception) {
             throw new YouTubeFetchException("YouTube 영상 정보를 해석하지 못했습니다.", exception);
         }
+    }
+
+    public String extractInnerTubeApiKey(String page) {
+        Matcher matcher = INNERTUBE_API_KEY_PATTERN.matcher(page);
+        if (!matcher.find()) {
+            throw new YouTubeFetchException("YouTube InnerTube API key가 없습니다.");
+        }
+        return matcher.group(1);
     }
 
     public String parseTranscript(String xml) {
@@ -183,13 +199,20 @@ public class YouTubePlayerPageParser {
 
     private int priority(JsonNode track) {
         String languageCode = text(track.path("languageCode"));
-        if (languageCode != null && languageCode.startsWith("ko")) {
+        String kind = text(track.path("kind"));
+        if (languageCode != null && languageCode.startsWith("ko") && "asr".equals(kind)) {
             return 0;
         }
-        if (languageCode != null && languageCode.startsWith("en")) {
+        if (languageCode != null && languageCode.startsWith("ko")) {
             return 1;
         }
-        return 2;
+        if ("asr".equals(kind)) {
+            return 2;
+        }
+        if (languageCode != null && languageCode.startsWith("en")) {
+            return 3;
+        }
+        return 4;
     }
 
     private String lastThumbnail(JsonNode thumbnails) {
