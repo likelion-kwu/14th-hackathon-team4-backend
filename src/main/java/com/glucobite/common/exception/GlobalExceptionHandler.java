@@ -1,6 +1,7 @@
 package com.glucobite.common.exception;
 
 import com.glucobite.auth.exception.DuplicateLoginIdException;
+import com.glucobite.auth.exception.AccountPersistenceException;
 import com.glucobite.auth.exception.InvalidAllergenException;
 import com.glucobite.auth.exception.InvalidCredentialsException;
 import com.glucobite.health.exception.HealthProfileNotFoundException;
@@ -105,6 +106,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiErrorResponse.of(
                 "DUPLICATE_LOGIN_ID",
                 exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(AccountPersistenceException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountPersistence() {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiErrorResponse.of(
+                "ACCOUNT_PERSISTENCE_FAILED",
+                "계정 정보를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
         ));
     }
 

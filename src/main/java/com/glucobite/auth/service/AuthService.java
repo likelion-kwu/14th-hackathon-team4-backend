@@ -5,6 +5,7 @@ import com.glucobite.auth.dto.SignupProfileRequest;
 import com.glucobite.auth.dto.SignupRequest;
 import com.glucobite.auth.dto.TokenResponse;
 import com.glucobite.auth.exception.DuplicateLoginIdException;
+import com.glucobite.auth.exception.AccountPersistenceException;
 import com.glucobite.auth.exception.InvalidAllergenException;
 import com.glucobite.auth.exception.InvalidCredentialsException;
 import com.glucobite.common.security.JwtTokenService;
@@ -31,6 +32,7 @@ public class AuthService {
     private final AllergenRepository allergenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenService jwtTokenService;
+    private final AuthConstraintViolationClassifier constraintViolationClassifier;
     private final String dummyPasswordHash;
 
     public AuthService(
@@ -38,13 +40,15 @@ public class AuthService {
             HealthProfileRepository healthProfileRepository,
             AllergenRepository allergenRepository,
             PasswordEncoder passwordEncoder,
-            JwtTokenService jwtTokenService
+            JwtTokenService jwtTokenService,
+            AuthConstraintViolationClassifier constraintViolationClassifier
     ) {
         this.userRepository = userRepository;
         this.healthProfileRepository = healthProfileRepository;
         this.allergenRepository = allergenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenService = jwtTokenService;
+        this.constraintViolationClassifier = constraintViolationClassifier;
         this.dummyPasswordHash = passwordEncoder.encode("dummy-password-for-timing-protection");
     }
 
@@ -98,7 +102,10 @@ public class AuthService {
                     request.nickname()
             ));
         } catch (DataIntegrityViolationException exception) {
-            throw new DuplicateLoginIdException(exception);
+            if (constraintViolationClassifier.isDuplicateLoginId(exception)) {
+                throw new DuplicateLoginIdException(exception);
+            }
+            throw new AccountPersistenceException(exception);
         }
     }
 
