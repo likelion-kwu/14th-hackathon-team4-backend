@@ -31,6 +31,7 @@ public class AuthService {
     private final AllergenRepository allergenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenService jwtTokenService;
+    private final RefreshTokenService refreshTokenService;
     private final String dummyPasswordHash;
 
     public AuthService(
@@ -38,18 +39,20 @@ public class AuthService {
             HealthProfileRepository healthProfileRepository,
             AllergenRepository allergenRepository,
             PasswordEncoder passwordEncoder,
-            JwtTokenService jwtTokenService
+            JwtTokenService jwtTokenService,
+            RefreshTokenService refreshTokenService
     ) {
         this.userRepository = userRepository;
         this.healthProfileRepository = healthProfileRepository;
         this.allergenRepository = allergenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenService = jwtTokenService;
+        this.refreshTokenService = refreshTokenService;
         this.dummyPasswordHash = passwordEncoder.encode("dummy-password-for-timing-protection");
     }
 
     @Transactional
-    public TokenResponse signup(SignupRequest request) {
+    public AuthenticationResult signup(SignupRequest request) {
         if (userRepository.existsByLoginId(request.loginId())) {
             throw new DuplicateLoginIdException();
         }
@@ -73,11 +76,11 @@ public class AuthService {
         );
         healthProfileRepository.save(healthProfile);
 
-        return TokenResponse.from(jwtTokenService.issue(user.getId()));
+        return authenticate(user);
     }
 
-    @Transactional(readOnly = true)
-    public TokenResponse login(LoginRequest request) {
+    @Transactional
+    public AuthenticationResult login(LoginRequest request) {
         Optional<User> foundUser = userRepository.findByLoginId(request.loginId());
         String passwordHash = foundUser
                 .map(User::getPassword)
@@ -87,7 +90,26 @@ public class AuthService {
             throw new InvalidCredentialsException();
         }
 
-        return TokenResponse.from(jwtTokenService.issue(foundUser.orElseThrow().getId()));
+        return authenticate(foundUser.orElseThrow());
+    }
+
+    public AuthenticationResult refresh(String rawRefreshToken) {
+        RotatedRefreshToken rotated = refreshTokenService.rotate(rawRefreshToken);
+        return new AuthenticationResult(
+                TokenResponse.from(jwtTokenService.issue(rotated.user().getId())),
+                rotated.rawToken()
+        );
+    }
+
+    public void logout(String rawRefreshToken) {
+        refreshTokenService.revoke(rawRefreshToken);
+    }
+
+    private AuthenticationResult authenticate(User user) {
+        return new AuthenticationResult(
+                TokenResponse.from(jwtTokenService.issue(user.getId())),
+                refreshTokenService.issue(user)
+        );
     }
 
     private User saveUser(SignupRequest request) {

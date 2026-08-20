@@ -80,6 +80,22 @@ class OpenApiConfigTest {
     }
 
     @Test
+    void documentsRefreshAndLogoutContracts() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/auth/refresh'].post.summary")
+                        .value("Access Token 갱신"))
+                .andExpect(jsonPath("$.paths['/api/auth/refresh'].post.responses['200']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/auth/refresh'].post.responses['401']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/auth/logout'].post.summary")
+                        .value("로그아웃"))
+                .andExpect(jsonPath("$.paths['/api/auth/logout'].post.responses['204']")
+                        .exists());
+    }
+
+    @Test
     void documentsPublicAllergenLookup() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
