@@ -3,6 +3,11 @@ package com.glucobite.common.exception;
 import com.glucobite.auth.exception.DuplicateLoginIdException;
 import com.glucobite.auth.exception.InvalidAllergenException;
 import com.glucobite.auth.exception.InvalidCredentialsException;
+import com.glucobite.health.exception.HealthProfileNotFoundException;
+import com.glucobite.recipe.exception.IngredientNotFoundException;
+import com.glucobite.recipe.exception.InvalidSubstituteIngredientException;
+import com.glucobite.recipe.exception.RecipeIngredientNotFoundException;
+import com.glucobite.recipe.exception.RecipeNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.context.MessageSourceResolvable;
@@ -101,6 +106,54 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiErrorResponse.of(
                 "INVALID_CREDENTIALS",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(RecipeNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleRecipeNotFound(RecipeNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiErrorResponse.of(
+                "RECIPE_NOT_FOUND",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(IngredientNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleIngredientNotFound(
+            IngredientNotFoundException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiErrorResponse.of(
+                "INGREDIENT_NOT_FOUND",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(RecipeIngredientNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleRecipeIngredientNotFound(
+            RecipeIngredientNotFoundException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiErrorResponse.of(
+                "RECIPE_INGREDIENT_NOT_FOUND",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(InvalidSubstituteIngredientException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidSubstituteIngredient(
+            InvalidSubstituteIngredientException exception
+    ) {
+        return ResponseEntity.badRequest().body(ApiErrorResponse.of(
+                "INVALID_SUBSTITUTE_INGREDIENT",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(HealthProfileNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleHealthProfileNotFound(
+            HealthProfileNotFoundException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiErrorResponse.of(
+                "HEALTH_PROFILE_NOT_FOUND",
                 exception.getMessage()
         ));
     }
