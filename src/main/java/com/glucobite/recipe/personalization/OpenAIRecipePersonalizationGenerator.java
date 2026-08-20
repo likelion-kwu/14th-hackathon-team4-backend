@@ -1,13 +1,13 @@
 package com.glucobite.recipe.personalization;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.glucobite.common.config.OpenAIProperties;
 import com.glucobite.recipe.exception.RecipePersonalizationGenerationException;
 import com.openai.client.OpenAIClient;
 import com.openai.models.responses.StructuredResponse;
 import com.openai.models.responses.StructuredResponseCreateParams;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -64,7 +64,7 @@ public class OpenAIRecipePersonalizationGenerator implements RecipePersonalizati
             return output.toGenerated(response.id());
         } catch (RecipePersonalizationGenerationException exception) {
             throw exception;
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new RecipePersonalizationGenerationException(
                     "개인화 요청 데이터를 직렬화하지 못했습니다.", exception
             );
