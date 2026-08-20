@@ -188,8 +188,7 @@ public class RecipeImportService {
 
         List<ResolvedIngredient> resolved = new ArrayList<>();
         for (MergedIngredient item : merged.values()) {
-            Ingredient ingredient = ingredientRepository.findFirstByTitleIgnoreCase(item.title())
-                    .orElseGet(() -> ingredientRepository.save(new Ingredient(item.title())));
+            Ingredient ingredient = resolveIngredient(item.title());
             NutritionSummary nutrition = ingredientNutritionRepository
                     .findByIngredientId(ingredient.getId())
                     .map(nutritionCalculator::toSummary)
@@ -197,6 +196,13 @@ public class RecipeImportService {
             resolved.add(new ResolvedIngredient(ingredient, nutrition, item.amount()));
         }
         return resolved;
+    }
+
+    private Ingredient resolveIngredient(String title) {
+        String normalizedTitle = Ingredient.normalizeTitle(title);
+        ingredientRepository.insertIgnore(title, normalizedTitle);
+        return ingredientRepository.findByNormalizedTitle(normalizedTitle)
+                .orElseThrow(() -> new IllegalStateException("재료 저장 결과가 없습니다."));
     }
 
     private RecipeIngredient.NutritionSnapshot snapshot(NutritionSummary nutrition) {
@@ -283,7 +289,7 @@ public class RecipeImportService {
     }
 
     private String normalizeTitle(String title) {
-        return title.trim().replaceAll("\\s+", " ");
+        return Ingredient.normalizeDisplayTitle(title);
     }
 
     private String trimToNull(String value) {

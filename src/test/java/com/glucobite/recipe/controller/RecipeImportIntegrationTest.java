@@ -15,6 +15,7 @@ import com.glucobite.recipe.importing.RecipeTextAnalyzer;
 import com.glucobite.recipe.repository.RecipeIngredientRepository;
 import com.glucobite.recipe.repository.RecipeRepository;
 import com.glucobite.recipe.repository.RecipeStepRepository;
+import com.glucobite.recipe.service.RecipeImportService;
 import com.glucobite.user.entity.User;
 import com.glucobite.user.repository.UserRepository;
 import jakarta.servlet.ServletException;
@@ -31,6 +32,11 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -57,6 +63,7 @@ class RecipeImportIntegrationTest {
     @Autowired private IngredientNutritionRepository ingredientNutritionRepository;
     @Autowired private JwtTokenService jwtTokenService;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private RecipeImportService recipeImportService;
 
     @MockitoBean private RecipeTextAnalyzer recipeTextAnalyzer;
     @MockitoSpyBean private RecipeStepRepository recipeStepRepository;
@@ -248,6 +255,32 @@ class RecipeImportIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.ingredients.length()").value(1))
                 .andExpect(jsonPath("$.ingredients[0].amount").value(150.00));
+    }
+
+    @Test
+    void concurrentImportsReuseOneNormalizedIngredient() throws Exception {
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        given(recipeTextAnalyzer.analyze(any())).willAnswer(invocation -> {
+            barrier.await(5, TimeUnit.SECONDS);
+            return analysisWithCalories("동시 레시피", "1.0");
+        });
+
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<?> first = executor.submit(() -> recipeImportService.importText(
+                    user.getId(),
+                    "첫 동시 요청"
+            ));
+            Future<?> second = executor.submit(() -> recipeImportService.importText(
+                    user.getId(),
+                    "둘째 동시 요청"
+            ));
+
+            first.get(10, TimeUnit.SECONDS);
+            second.get(10, TimeUnit.SECONDS);
+        }
+
+        assertThat(ingredientRepository.count()).isEqualTo(1);
+        assertThat(recipeRepository.count()).isEqualTo(2);
     }
 
     @Test

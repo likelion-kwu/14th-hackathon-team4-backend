@@ -161,6 +161,31 @@ class FlywayMigrationTest {
         ));
     }
 
+    @Test
+    void appliesIngredientNormalizedTitleMigration() {
+        assertTrue(isApplied("11"));
+        assertEquals(1L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_name = 'ingredients'
+                  AND column_name = 'normalized_title'
+                  AND is_nullable = 'NO'
+                """,
+                Long.class
+        ));
+        assertEquals(1L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.table_constraints
+                WHERE table_name = 'ingredients'
+                  AND constraint_name = 'uk_ingredients_normalized_title'
+                  AND constraint_type = 'UNIQUE'
+                """,
+                Long.class
+        ));
+    }
+
     private boolean isApplied(String version) {
         return List.of(flyway.info().applied()).stream()
                 .anyMatch(migration -> version.equals(migration.getVersion().getVersion()));
