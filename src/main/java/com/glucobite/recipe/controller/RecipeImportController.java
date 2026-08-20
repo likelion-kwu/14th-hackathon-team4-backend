@@ -4,7 +4,14 @@ import com.glucobite.common.config.OpenApiConfig;
 import com.glucobite.common.exception.ApiErrorResponse;
 import com.glucobite.recipe.dto.ImportedRecipeResponse;
 import com.glucobite.recipe.dto.TextRecipeImportRequest;
+import com.glucobite.recipe.dto.YouTubeRecipeImportRequest;
+import com.glucobite.recipe.entity.RecipeImportType;
+import com.glucobite.recipe.importing.RecipeSourceMetadata;
 import com.glucobite.recipe.service.RecipeImportService;
+import com.glucobite.recipe.youtube.YouTubeTranscriptProvider;
+import com.glucobite.recipe.youtube.YouTubeUrlParser;
+import com.glucobite.recipe.youtube.YouTubeVideoContent;
+import com.glucobite.recipe.youtube.YouTubeVideoReference;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,9 +38,17 @@ import java.net.URI;
 public class RecipeImportController {
 
     private final RecipeImportService recipeImportService;
+    private final YouTubeUrlParser youTubeUrlParser;
+    private final YouTubeTranscriptProvider youTubeTranscriptProvider;
 
-    public RecipeImportController(RecipeImportService recipeImportService) {
+    public RecipeImportController(
+            RecipeImportService recipeImportService,
+            YouTubeUrlParser youTubeUrlParser,
+            YouTubeTranscriptProvider youTubeTranscriptProvider
+    ) {
         this.recipeImportService = recipeImportService;
+        this.youTubeUrlParser = youTubeUrlParser;
+        this.youTubeTranscriptProvider = youTubeTranscriptProvider;
     }
 
     @PostMapping("/text")
@@ -63,5 +78,49 @@ public class RecipeImportController {
         );
         return ResponseEntity.created(URI.create("/api/recipes/" + response.recipeId()))
                 .body(response);
+    }
+
+    @PostMapping("/youtube")
+    @Operation(
+            summary = "YouTube 레시피 분석 및 저장",
+            description = "YouTube 영상의 공개 자막을 분석해 completed=false인 BASE Recipe로 저장합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "기본 Recipe 저장 성공",
+                    content = @Content(schema = @Schema(implementation = ImportedRecipeResponse.class))),
+            @ApiResponse(responseCode = "400", description = "잘못되었거나 지원하지 않는 YouTube URL",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "422", description = "영상 또는 공개 자막을 사용할 수 없음",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "502", description = "YouTube 또는 OpenAI 호출 실패",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
+    public ResponseEntity<ImportedRecipeResponse> importYouTube(
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody YouTubeRecipeImportRequest request
+    ) {
+        YouTubeVideoReference reference = youTubeUrlParser.parse(request.url());
+        YouTubeVideoContent content = youTubeTranscriptProvider.fetch(reference);
+        ImportedRecipeResponse response = recipeImportService.importAnalyzedText(
+                Long.valueOf(jwt.getSubject()),
+                analysisText(content),
+                RecipeImportType.URL,
+                new RecipeSourceMetadata(
+                        content.canonicalUrl(),
+                        content.videoId(),
+                        content.thumbnailUrl()
+                )
+        );
+        return ResponseEntity.created(URI.create("/api/recipes/" + response.recipeId()))
+                .body(response);
+    }
+
+    private String analysisText(YouTubeVideoContent content) {
+        if (content.title() == null || content.title().isBlank()) {
+            return content.transcript();
+        }
+        return "영상 제목: " + content.title() + "\n자막:\n" + content.transcript();
     }
 }

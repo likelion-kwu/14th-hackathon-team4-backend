@@ -64,6 +64,15 @@ public class Recipe extends BaseTimeEntity {
     @Column(name = "openai_response_id", length = 100)
     private String openAIResponseId;
 
+    @Column(name = "source_url", length = 500)
+    private String sourceUrl;
+
+    @Column(name = "source_external_id", length = 100)
+    private String sourceExternalId;
+
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
+
     public Recipe(
             User user,
             String title,
@@ -144,5 +153,15 @@ public class Recipe extends BaseTimeEntity {
     public void complete() {
         this.completed = true;
         this.recipeType = RecipeType.PERSONALIZED;
+    }
+
+    public void attachSourceMetadata(
+            String sourceUrl,
+            String sourceExternalId,
+            String imageUrl
+    ) {
+        this.sourceUrl = sourceUrl;
+        this.sourceExternalId = sourceExternalId;
+        this.imageUrl = imageUrl;
     }
 }

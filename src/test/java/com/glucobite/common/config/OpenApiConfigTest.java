@@ -222,4 +222,30 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.components.schemas.ImportedRecipeResponse.properties.completed")
                         .exists());
     }
+
+    @Test
+    void documentsYouTubeRecipeImportContract() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/recipes/import/youtube'].post.summary")
+                        .value("YouTube 레시피 분석 및 저장"))
+                .andExpect(jsonPath("$.paths['/api/recipes/import/youtube'].post.security[0].bearerAuth")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/recipes/import/youtube'].post.requestBody.content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/YouTubeRecipeImportRequest"))
+                .andExpect(jsonPath("$.paths['/api/recipes/import/youtube'].post.responses['201'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ImportedRecipeResponse"))
+                .andExpect(jsonPath("$.paths['/api/recipes/import/youtube'].post.responses['400']").exists())
+                .andExpect(jsonPath("$.paths['/api/recipes/import/youtube'].post.responses['401']").exists())
+                .andExpect(jsonPath("$.paths['/api/recipes/import/youtube'].post.responses['422']").exists())
+                .andExpect(jsonPath("$.paths['/api/recipes/import/youtube'].post.responses['502']").exists())
+                .andExpect(jsonPath("$.components.schemas.YouTubeRecipeImportRequest.properties.url.maxLength")
+                        .value(500))
+                .andExpect(jsonPath("$.components.schemas.ImportedRecipeResponse.properties.sourceUrl")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.ImportedRecipeResponse.properties.sourceExternalId")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.ImportedRecipeResponse.properties.imageUrl")
+                        .exists());
+    }
 }
