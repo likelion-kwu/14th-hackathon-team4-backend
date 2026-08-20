@@ -51,6 +51,14 @@ public class IngredientNutrition {
     @Column(precision = 10, scale = 2)
     private BigDecimal fiber;
 
+    @PositiveOrZero
+    @Column(nullable = false, precision = 10, scale = 2)
+    private BigDecimal sugar;
+
+    @PositiveOrZero
+    @Column(nullable = false, precision = 10, scale = 2)
+    private BigDecimal sodium;
+
     public IngredientNutrition(
             Ingredient ingredient,
             BigDecimal calories,
@@ -59,11 +67,26 @@ public class IngredientNutrition {
             BigDecimal fat,
             BigDecimal fiber
     ) {
+        this(ingredient, calories, carb, protein, fat, fiber, BigDecimal.ZERO, BigDecimal.ZERO);
+    }
+
+    public IngredientNutrition(
+            Ingredient ingredient,
+            BigDecimal calories,
+            BigDecimal carb,
+            BigDecimal protein,
+            BigDecimal fat,
+            BigDecimal fiber,
+            BigDecimal sugar,
+            BigDecimal sodium
+    ) {
         this.ingredient = ingredient;
         this.calories = calories;
         this.carb = carb;
         this.protein = protein;
         this.fat = fat;
         this.fiber = fiber;
+        this.sugar = sugar;
+        this.sodium = sodium;
     }
 }

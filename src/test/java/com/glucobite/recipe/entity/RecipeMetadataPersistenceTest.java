@@ -53,6 +53,73 @@ class RecipeMetadataPersistenceTest {
 
         assertThat(recipe.getImportType()).isNull();
         assertThat(recipe.getTotalCalories()).isNull();
+        assertThat(recipe.getRecipeType()).isEqualTo(RecipeType.BASE);
+    }
+
+    @Test
+    void persistsPersonalizationCandidateMetadata() {
+        User user = persistUser("candidate-metadata-user");
+        Recipe source = entityManager.persistAndFlush(
+                new Recipe(user, "계란 볶음밥", null, 20, RecipeImportType.TEXT, null)
+        );
+        Recipe candidate = entityManager.persistAndFlush(Recipe.personalizationCandidate(
+                source,
+                "닭가슴살 계란 볶음밥",
+                "단백질을 보강한 수정안",
+                20,
+                new BigDecimal("420.00"),
+                "고단백질 위주 수정안",
+                "NUTRITION_BALANCE 목표 반영",
+                "resp_test"
+        ));
+        entityManager.clear();
+
+        Recipe saved = entityManager.find(Recipe.class, candidate.getId());
+
+        assertThat(saved.getRecipeType()).isEqualTo(RecipeType.PERSONALIZATION_CANDIDATE);
+        assertThat(saved.isCompleted()).isFalse();
+        assertThat(saved.getSourceRecipe().getId()).isEqualTo(source.getId());
+        assertThat(saved.getPersonalizationLabel()).isEqualTo("고단백질 위주 수정안");
+        assertThat(saved.getPersonalizationReason()).isEqualTo("NUTRITION_BALANCE 목표 반영");
+        assertThat(saved.getOpenAIResponseId()).isEqualTo("resp_test");
+    }
+
+    @Test
+    void persistsExternalRecipeSourceMetadata() {
+        User user = persistUser("source-metadata-user");
+        Recipe recipe = new Recipe(
+                user,
+                "영상 레시피",
+                null,
+                20,
+                RecipeImportType.URL,
+                new BigDecimal("400.00")
+        );
+        recipe.attachSourceMetadata(
+                "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                "dQw4w9WgXcQ",
+                "https://i.ytimg.com/test.jpg"
+        );
+        Recipe saved = entityManager.persistAndFlush(recipe);
+        entityManager.clear();
+
+        Recipe reloaded = entityManager.find(Recipe.class, saved.getId());
+        assertThat(reloaded.getSourceUrl())
+                .isEqualTo("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+        assertThat(reloaded.getSourceExternalId()).isEqualTo("dQw4w9WgXcQ");
+        assertThat(reloaded.getImageUrl()).isEqualTo("https://i.ytimg.com/test.jpg");
+    }
+
+    @Test
+    void completingRecipeMarksItAsPersonalized() {
+        User user = persistUser("completed-type-user");
+        Recipe recipe = new Recipe(user, "개인화 완료 레시피", null, 10);
+
+        recipe.complete();
+        Recipe saved = entityManager.persistAndFlush(recipe);
+
+        assertThat(saved.isCompleted()).isTrue();
+        assertThat(saved.getRecipeType()).isEqualTo(RecipeType.PERSONALIZED);
     }
 
     @Test

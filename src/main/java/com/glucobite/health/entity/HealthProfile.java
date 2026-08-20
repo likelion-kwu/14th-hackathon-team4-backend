@@ -127,4 +127,29 @@ public class HealthProfile extends BaseTimeEntity {
         this.dietaryRestrictionNote = dietaryRestrictionNote;
         this.allergens.addAll(allergens);
     }
+
+    public void update(
+            LocalDate birthDate,
+            BigDecimal height,
+            BigDecimal weight,
+            Sex sex,
+            HealthGoal healthGoal,
+            boolean glucoseDeviceConnected,
+            Integer dailyCarbsTarget,
+            VegetarianType vegetarianType,
+            String dietaryRestrictionNote,
+            Collection<Allergen> allergens
+    ) {
+        this.birthDate = birthDate;
+        this.height = height;
+        this.weight = weight;
+        this.sex = sex;
+        this.healthGoal = healthGoal;
+        this.glucoseDeviceConnected = glucoseDeviceConnected;
+        this.dailyCarbsTarget = dailyCarbsTarget;
+        this.vegetarianType = vegetarianType;
+        this.dietaryRestrictionNote = dietaryRestrictionNote;
+        this.allergens.clear();
+        this.allergens.addAll(allergens);
+    }
 }

@@ -3,6 +3,19 @@ package com.glucobite.common.exception;
 import com.glucobite.auth.exception.DuplicateLoginIdException;
 import com.glucobite.auth.exception.InvalidAllergenException;
 import com.glucobite.auth.exception.InvalidCredentialsException;
+import com.glucobite.health.exception.HealthProfileNotFoundException;
+import com.glucobite.recipe.exception.IngredientNotFoundException;
+import com.glucobite.recipe.exception.InvalidRecipeSubstitutionException;
+import com.glucobite.recipe.exception.InvalidRecipeAnalysisException;
+import com.glucobite.recipe.exception.InvalidSubstituteIngredientException;
+import com.glucobite.recipe.exception.InvalidYouTubeUrlException;
+import com.glucobite.recipe.exception.RecipeIngredientNotFoundException;
+import com.glucobite.recipe.exception.RecipeImportGenerationException;
+import com.glucobite.recipe.exception.RecipeNotFoundException;
+import com.glucobite.recipe.exception.RecipeNotPersonalizableException;
+import com.glucobite.recipe.exception.RecipePersonalizationGenerationException;
+import com.glucobite.recipe.exception.YouTubeFetchException;
+import com.glucobite.recipe.exception.YouTubeTranscriptUnavailableException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.context.MessageSourceResolvable;
@@ -101,6 +114,134 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiErrorResponse.of(
                 "INVALID_CREDENTIALS",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(RecipeNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleRecipeNotFound(RecipeNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiErrorResponse.of(
+                "RECIPE_NOT_FOUND",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(RecipeNotPersonalizableException.class)
+    public ResponseEntity<ApiErrorResponse> handleRecipeNotPersonalizable(
+            RecipeNotPersonalizableException exception
+    ) {
+        return ResponseEntity.badRequest().body(ApiErrorResponse.of(
+                "RECIPE_NOT_PERSONALIZABLE",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(RecipePersonalizationGenerationException.class)
+    public ResponseEntity<ApiErrorResponse> handleRecipePersonalizationGeneration(
+            RecipePersonalizationGenerationException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ApiErrorResponse.of(
+                "RECIPE_PERSONALIZATION_GENERATION_FAILED",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(InvalidRecipeAnalysisException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidRecipeAnalysis(
+            InvalidRecipeAnalysisException exception
+    ) {
+        return ResponseEntity.unprocessableEntity().body(ApiErrorResponse.of(
+                "INVALID_RECIPE_ANALYSIS",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(RecipeImportGenerationException.class)
+    public ResponseEntity<ApiErrorResponse> handleRecipeImportGeneration(
+            RecipeImportGenerationException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ApiErrorResponse.of(
+                "RECIPE_IMPORT_GENERATION_FAILED",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(InvalidYouTubeUrlException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidYouTubeUrl(
+            InvalidYouTubeUrlException exception
+    ) {
+        return ResponseEntity.badRequest().body(ApiErrorResponse.of(
+                "INVALID_YOUTUBE_URL",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(YouTubeTranscriptUnavailableException.class)
+    public ResponseEntity<ApiErrorResponse> handleYouTubeTranscriptUnavailable(
+            YouTubeTranscriptUnavailableException exception
+    ) {
+        return ResponseEntity.unprocessableEntity().body(ApiErrorResponse.of(
+                "YOUTUBE_TRANSCRIPT_UNAVAILABLE",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(YouTubeFetchException.class)
+    public ResponseEntity<ApiErrorResponse> handleYouTubeFetch(
+            YouTubeFetchException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ApiErrorResponse.of(
+                "YOUTUBE_FETCH_FAILED",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(IngredientNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleIngredientNotFound(
+            IngredientNotFoundException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiErrorResponse.of(
+                "INGREDIENT_NOT_FOUND",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(RecipeIngredientNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleRecipeIngredientNotFound(
+            RecipeIngredientNotFoundException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiErrorResponse.of(
+                "RECIPE_INGREDIENT_NOT_FOUND",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(InvalidSubstituteIngredientException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidSubstituteIngredient(
+            InvalidSubstituteIngredientException exception
+    ) {
+        return ResponseEntity.badRequest().body(ApiErrorResponse.of(
+                "INVALID_SUBSTITUTE_INGREDIENT",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(InvalidRecipeSubstitutionException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidRecipeSubstitution(
+            InvalidRecipeSubstitutionException exception
+    ) {
+        return ResponseEntity.badRequest().body(ApiErrorResponse.of(
+                "INVALID_RECIPE_SUBSTITUTION",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(HealthProfileNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleHealthProfileNotFound(
+            HealthProfileNotFoundException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiErrorResponse.of(
+                "HEALTH_PROFILE_NOT_FOUND",
                 exception.getMessage()
         ));
     }
