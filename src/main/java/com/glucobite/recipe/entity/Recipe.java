@@ -117,6 +117,30 @@ public class Recipe extends BaseTimeEntity {
         return candidate;
     }
 
+    public static Recipe personalizedFrom(
+            Recipe workingRecipe,
+            String title,
+            BigDecimal totalCalories
+    ) {
+        Recipe personalized = new Recipe(
+                workingRecipe.getUser(),
+                title,
+                workingRecipe.getDescription(),
+                workingRecipe.getCookingTime(),
+                workingRecipe.getImportType(),
+                totalCalories
+        );
+        personalized.completed = true;
+        personalized.recipeType = RecipeType.PERSONALIZED;
+        personalized.sourceRecipe = workingRecipe.recipeType == RecipeType.BASE
+                ? workingRecipe
+                : workingRecipe.sourceRecipe;
+        personalized.personalizationLabel = workingRecipe.personalizationLabel;
+        personalized.personalizationReason = workingRecipe.personalizationReason;
+        personalized.openAIResponseId = workingRecipe.openAIResponseId;
+        return personalized;
+    }
+
     public void complete() {
         this.completed = true;
         this.recipeType = RecipeType.PERSONALIZED;

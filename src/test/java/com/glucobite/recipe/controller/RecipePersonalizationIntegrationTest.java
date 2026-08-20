@@ -306,13 +306,14 @@ class RecipePersonalizationIntegrationTest {
     }
 
     @Test
-    void rejectsEmptySubstitutionList() throws Exception {
+    void previewsRecipeWithoutChangesWhenSubstitutionListIsEmpty() throws Exception {
         mockMvc.perform(post("/api/recipes/{id}/substitutions/preview", recipe.getId())
                         .header("Authorization", bearer(owner))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"substitutions\":[]}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.changedIngredients.length()").value(0))
+                .andExpect(jsonPath("$.nutritionChanges.calories").value(0));
     }
 
     @Test
@@ -375,6 +376,8 @@ class RecipePersonalizationIntegrationTest {
                 .isEqualTo("/api/recipes/" + savedRecipeId);
         assertThat(saved.getTitle()).isEqualTo("닭가슴살 콜리플라워 볶음");
         assertThat(saved.isCompleted()).isTrue();
+        assertThat(saved.getRecipeType()).isEqualTo(RecipeType.PERSONALIZED);
+        assertThat(saved.getSourceRecipe().getId()).isEqualTo(recipe.getId());
         assertThat(saved.getTotalCalories()).isEqualByComparingTo("157.00");
         assertThat(recipeIngredientRepository.findByRecipeId(savedRecipeId))
                 .extracting(item -> item.getIngredient().getId())
@@ -385,6 +388,56 @@ class RecipePersonalizationIntegrationTest {
         assertThat(recipeIngredientRepository.findByRecipeId(recipe.getId()))
                 .extracting(item -> item.getIngredient().getId())
                 .containsExactlyInAnyOrder(pork.getId(), rice.getId());
+    }
+
+    @Test
+    void selectsCandidateWithoutIngredientReplacementAndKeepsBaseReference() throws Exception {
+        Recipe candidate = recipeRepository.save(Recipe.personalizationCandidate(
+                recipe,
+                "GPT 닭가슴살 볶음",
+                "후보 설명",
+                18,
+                new BigDecimal("190.00"),
+                "고단백질 수정안",
+                "단백질을 보강했습니다.",
+                "resp_candidate"
+        ));
+        recipeIngredientRepository.save(new RecipeIngredient(candidate, chicken, BigDecimal.ONE));
+        recipeIngredientRepository.save(new RecipeIngredient(candidate, cauliflower, BigDecimal.ONE));
+        recipeStepRepository.save(new RecipeStep(candidate, 1, "후보 재료를 볶는다."));
+
+        MvcResult result = mockMvc.perform(post(
+                        "/api/recipes/{id}/substitutions", candidate.getId()
+                )
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":null,\"substitutions\":[]}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.sourceRecipeId").value(candidate.getId()))
+                .andExpect(jsonPath("$.title").value("GPT 닭가슴살 볶음"))
+                .andReturn();
+
+        Long savedId = objectMapper.readTree(result.getResponse().getContentAsByteArray())
+                .get("recipeId").asLong();
+        Recipe saved = recipeRepository.findById(savedId).orElseThrow();
+        assertThat(saved.isCompleted()).isTrue();
+        assertThat(saved.getRecipeType()).isEqualTo(RecipeType.PERSONALIZED);
+        assertThat(saved.getSourceRecipe().getId()).isEqualTo(recipe.getId());
+        assertThat(saved.getPersonalizationLabel()).isEqualTo("고단백질 수정안");
+        assertThat(recipeStepRepository.findByRecipeIdOrderByStepOrderAsc(savedId))
+                .extracting(RecipeStep::getDescription)
+                .containsExactly("후보 재료를 볶는다.");
+
+        MvcResult cookedAgain = mockMvc.perform(post("/api/recipes/{id}/substitutions", savedId)
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":null,\"substitutions\":[]}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long cookedAgainId = objectMapper.readTree(cookedAgain.getResponse().getContentAsByteArray())
+                .get("recipeId").asLong();
+        assertThat(recipeRepository.findById(cookedAgainId).orElseThrow().getSourceRecipe().getId())
+                .isEqualTo(recipe.getId());
     }
 
     @Test

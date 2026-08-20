@@ -164,15 +164,11 @@ public class RecipePersonalizationService {
         String title = request.title() == null || request.title().isBlank()
                 ? source.getTitle()
                 : request.title();
-        Recipe saved = new Recipe(
-                source.getUser(),
+        Recipe saved = Recipe.personalizedFrom(
+                source,
                 title,
-                source.getDescription(),
-                source.getCookingTime(),
-                source.getImportType(),
                 calculation.personalizedNutrition().calories().setScale(2, RoundingMode.HALF_UP)
         );
-        saved.complete();
         recipeRepository.save(saved);
 
         List<RecipeIngredient> savedIngredients = calculation.finalIngredients().stream()

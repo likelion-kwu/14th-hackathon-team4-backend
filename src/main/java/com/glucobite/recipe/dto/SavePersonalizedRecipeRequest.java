@@ -2,7 +2,6 @@ package com.glucobite.recipe.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -15,7 +14,7 @@ public record SavePersonalizedRecipeRequest(
         String title,
 
         @Schema(description = "최종 선택한 전체 대체 항목")
-        @NotEmpty
+        @NotNull
         @Size(max = 100)
         List<@NotNull @Valid IngredientSubstitutionRequest> substitutions
 ) {
