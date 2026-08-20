@@ -53,6 +53,47 @@ class RecipeMetadataPersistenceTest {
 
         assertThat(recipe.getImportType()).isNull();
         assertThat(recipe.getTotalCalories()).isNull();
+        assertThat(recipe.getRecipeType()).isEqualTo(RecipeType.BASE);
+    }
+
+    @Test
+    void persistsPersonalizationCandidateMetadata() {
+        User user = persistUser("candidate-metadata-user");
+        Recipe source = entityManager.persistAndFlush(
+                new Recipe(user, "계란 볶음밥", null, 20, RecipeImportType.TEXT, null)
+        );
+        Recipe candidate = entityManager.persistAndFlush(Recipe.personalizationCandidate(
+                source,
+                "닭가슴살 계란 볶음밥",
+                "단백질을 보강한 수정안",
+                20,
+                new BigDecimal("420.00"),
+                "고단백질 위주 수정안",
+                "NUTRITION_BALANCE 목표 반영",
+                "resp_test"
+        ));
+        entityManager.clear();
+
+        Recipe saved = entityManager.find(Recipe.class, candidate.getId());
+
+        assertThat(saved.getRecipeType()).isEqualTo(RecipeType.PERSONALIZATION_CANDIDATE);
+        assertThat(saved.isCompleted()).isFalse();
+        assertThat(saved.getSourceRecipe().getId()).isEqualTo(source.getId());
+        assertThat(saved.getPersonalizationLabel()).isEqualTo("고단백질 위주 수정안");
+        assertThat(saved.getPersonalizationReason()).isEqualTo("NUTRITION_BALANCE 목표 반영");
+        assertThat(saved.getOpenAIResponseId()).isEqualTo("resp_test");
+    }
+
+    @Test
+    void completingRecipeMarksItAsPersonalized() {
+        User user = persistUser("completed-type-user");
+        Recipe recipe = new Recipe(user, "개인화 완료 레시피", null, 10);
+
+        recipe.complete();
+        Recipe saved = entityManager.persistAndFlush(recipe);
+
+        assertThat(saved.isCompleted()).isTrue();
+        assertThat(saved.getRecipeType()).isEqualTo(RecipeType.PERSONALIZED);
     }
 
     @Test

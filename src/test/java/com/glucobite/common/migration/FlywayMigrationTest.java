@@ -76,6 +76,26 @@ class FlywayMigrationTest {
         ));
     }
 
+    @Test
+    void appliesRecipePersonalizationMetadataMigration() {
+        assertTrue(isApplied("6"));
+        assertEquals(5L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_name = 'recipes'
+                  AND column_name IN (
+                    'recipe_type',
+                    'source_recipe_id',
+                    'personalization_label',
+                    'personalization_reason',
+                    'openai_response_id'
+                  )
+                """,
+                Long.class
+        ));
+    }
+
     private boolean isApplied(String version) {
         return List.of(flyway.info().applied()).stream()
                 .anyMatch(migration -> version.equals(migration.getVersion().getVersion()));

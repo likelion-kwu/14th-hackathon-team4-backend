@@ -47,6 +47,23 @@ public class Recipe extends BaseTimeEntity {
     @Column(name = "is_completed", nullable = false)
     private boolean completed;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "recipe_type", nullable = false, length = 40)
+    private RecipeType recipeType;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "source_recipe_id")
+    private Recipe sourceRecipe;
+
+    @Column(name = "personalization_label", length = 150)
+    private String personalizationLabel;
+
+    @Column(name = "personalization_reason", length = 500)
+    private String personalizationReason;
+
+    @Column(name = "openai_response_id", length = 100)
+    private String openAIResponseId;
+
     public Recipe(
             User user,
             String title,
@@ -71,9 +88,37 @@ public class Recipe extends BaseTimeEntity {
         this.importType = importType;
         this.totalCalories = totalCalories;
         this.completed = false;
+        this.recipeType = RecipeType.BASE;
+    }
+
+    public static Recipe personalizationCandidate(
+            Recipe sourceRecipe,
+            String title,
+            String description,
+            Integer cookingTime,
+            BigDecimal totalCalories,
+            String personalizationLabel,
+            String personalizationReason,
+            String openAIResponseId
+    ) {
+        Recipe candidate = new Recipe(
+                sourceRecipe.getUser(),
+                title,
+                description,
+                cookingTime,
+                sourceRecipe.getImportType(),
+                totalCalories
+        );
+        candidate.recipeType = RecipeType.PERSONALIZATION_CANDIDATE;
+        candidate.sourceRecipe = sourceRecipe;
+        candidate.personalizationLabel = personalizationLabel;
+        candidate.personalizationReason = personalizationReason;
+        candidate.openAIResponseId = openAIResponseId;
+        return candidate;
     }
 
     public void complete() {
         this.completed = true;
+        this.recipeType = RecipeType.PERSONALIZED;
     }
 }

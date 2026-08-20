@@ -2,6 +2,7 @@ package com.glucobite.recipe.dto;
 
 import com.glucobite.recipe.entity.Recipe;
 import com.glucobite.recipe.entity.RecipeImportType;
+import com.glucobite.recipe.entity.RecipeType;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
@@ -24,8 +25,14 @@ public record RecipeSummaryResponse(
         @Schema(description = "레시피 유입 방식", example = "URL", nullable = true)
         RecipeImportType importType,
 
-        @Schema(description = "조리 완료 여부", example = "true")
+        @Schema(description = "개인화 완료 여부", example = "true")
         boolean completed,
+
+        @Schema(description = "레시피 단계", example = "PERSONALIZED")
+        RecipeType recipeType,
+
+        @Schema(description = "개인화 원본 Recipe ID", example = "10", nullable = true)
+        Long sourceRecipeId,
 
         @Schema(description = "레시피 생성 시각", example = "2026-08-19T12:30:00")
         LocalDateTime createdAt
@@ -39,6 +46,8 @@ public record RecipeSummaryResponse(
                 recipe.getTotalCalories(),
                 recipe.getImportType(),
                 recipe.isCompleted(),
+                recipe.getRecipeType(),
+                recipe.getSourceRecipe() == null ? null : recipe.getSourceRecipe().getId(),
                 recipe.getCreatedAt()
         );
     }
