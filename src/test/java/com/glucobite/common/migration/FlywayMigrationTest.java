@@ -259,6 +259,29 @@ class FlywayMigrationTest {
         ));
     }
 
+    @Test
+    void appliesRefreshTokenMigration() {
+        assertTrue(isApplied("14"));
+        assertEquals(1L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                  AND table_name = 'refresh_tokens'
+                """,
+                Long.class
+        ));
+        assertEquals(0L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_name = 'refresh_tokens'
+                  AND column_name = 'raw_token'
+                """,
+                Long.class
+        ));
+    }
+
     private boolean isApplied(String version) {
         return List.of(flyway.info().applied()).stream()
                 .anyMatch(migration -> version.equals(migration.getVersion().getVersion()));
