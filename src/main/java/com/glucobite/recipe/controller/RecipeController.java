@@ -121,8 +121,9 @@ public class RecipeController {
 
     @GetMapping("/recommendations")
     @Operation(
-            summary = "개인화 레시피 추천 조회",
-            description = "소유 레시피 중 알레르기와 하루 탄수화물 목표를 만족하는 항목을 최신순으로 반환합니다."
+            summary = "보유 레시피 건강 조건 필터링",
+            description = "이미 보유한 BASE/PERSONALIZED Recipe 중 알레르기와 하루 탄수화물 목표를 "
+                    + "만족하는 항목을 최신순으로 반환합니다. GPT 개인화 후보 생성이나 재추천 API가 아닙니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공",

@@ -2,7 +2,7 @@ package com.glucobite.recipe.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(description = "개인화 추천 레시피 항목")
+@Schema(description = "건강 조건을 만족하는 보유 Recipe 항목")
 public record RecipeRecommendationItemResponse(
         @Schema(description = "레시피 ID", example = "10")
         Long recipeId,
