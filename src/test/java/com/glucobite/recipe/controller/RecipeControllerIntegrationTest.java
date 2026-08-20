@@ -3,6 +3,7 @@ package com.glucobite.recipe.controller;
 import com.glucobite.common.security.JwtTokenService;
 import com.glucobite.recipe.entity.Recipe;
 import com.glucobite.recipe.entity.RecipeImportType;
+import com.glucobite.recipe.entity.RecipeType;
 import com.glucobite.recipe.repository.RecipeRepository;
 import com.glucobite.user.entity.User;
 import com.glucobite.user.repository.UserRepository;
@@ -110,6 +111,32 @@ class RecipeControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", hasSize(1)))
                 .andExpect(jsonPath("$.content[0].title").value("미완료 레시피"));
+    }
+
+    @Test
+    void hidesPersonalizationCandidateFromOwnedRecipeList() throws Exception {
+        User owner = saveUser("recipe-candidate-hidden-owner");
+        Recipe base = saveRecipe(owner, "기본 레시피", false, RecipeImportType.TEXT, "120.00");
+        Recipe candidate = recipeRepository.save(Recipe.personalizationCandidate(
+                base,
+                "GPT 후보",
+                "선택 전 후보",
+                20,
+                new BigDecimal("100.00"),
+                "저탄수 수정안",
+                "탄수화물 조정",
+                "resp_hidden"
+        ));
+
+        mockMvc.perform(get("/api/recipes")
+                        .header("Authorization", bearerToken(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].recipeId").value(base.getId()))
+                .andExpect(jsonPath("$.content[0].recipeType").value(RecipeType.BASE.name()));
+
+        org.assertj.core.api.Assertions.assertThat(candidate.getRecipeType())
+                .isEqualTo(RecipeType.PERSONALIZATION_CANDIDATE);
     }
 
     @Test
