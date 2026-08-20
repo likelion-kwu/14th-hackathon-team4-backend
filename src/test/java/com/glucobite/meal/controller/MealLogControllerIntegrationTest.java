@@ -12,6 +12,7 @@ import com.glucobite.recipe.repository.RecipeIngredientRepository;
 import com.glucobite.recipe.repository.RecipeRepository;
 import com.glucobite.user.entity.User;
 import com.glucobite.user.repository.UserRepository;
+import com.glucobite.tracking.service.TrackingDateRange;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,7 +59,8 @@ class MealLogControllerIntegrationTest {
     @Test
     void recordsManualMealAndReturnsItByDate() throws Exception {
         User user = createUser("manual-meal-user");
-        String eatenAt = LocalDateTime.now().minusHours(1).withNano(0).toString();
+        String eatenAt = LocalDateTime.now(TrackingDateRange.KST)
+                .minusHours(1).withNano(0).toString();
 
         mockMvc.perform(post("/api/meal-logs")
                         .header(HttpHeaders.AUTHORIZATION, bearer(user))
@@ -78,7 +80,7 @@ class MealLogControllerIntegrationTest {
                 .andExpect(jsonPath("$.title").value("직접 만든 샐러드"))
                 .andExpect(jsonPath("$.carb").value(28.4));
 
-        String today = LocalDate.now().toString();
+        String today = LocalDate.now(TrackingDateRange.KST).toString();
         mockMvc.perform(get("/api/meal-logs")
                         .header(HttpHeaders.AUTHORIZATION, bearer(user))
                         .param("from", today)
@@ -92,7 +94,8 @@ class MealLogControllerIntegrationTest {
     void snapshotsOwnedRecipeNutritionAtRecordingTime() throws Exception {
         User user = createUser("recipe-meal-user");
         Recipe recipe = createRecipe(user, "현미 덮밥");
-        String eatenAt = LocalDateTime.now().minusMinutes(10).withNano(0).toString();
+        String eatenAt = LocalDateTime.now(TrackingDateRange.KST)
+                .minusMinutes(10).withNano(0).toString();
 
         mockMvc.perform(post("/api/meal-logs")
                         .header(HttpHeaders.AUTHORIZATION, bearer(user))
@@ -120,7 +123,8 @@ class MealLogControllerIntegrationTest {
         User owner = createUser("recipe-owner");
         User attacker = createUser("recipe-attacker");
         Recipe recipe = createRecipe(owner, "소유자 레시피");
-        String eatenAt = LocalDateTime.now().minusMinutes(1).withNano(0).toString();
+        String eatenAt = LocalDateTime.now(TrackingDateRange.KST)
+                .minusMinutes(1).withNano(0).toString();
 
         mockMvc.perform(post("/api/meal-logs")
                         .header(HttpHeaders.AUTHORIZATION, bearer(attacker))

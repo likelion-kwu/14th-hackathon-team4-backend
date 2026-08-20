@@ -7,6 +7,7 @@ import com.glucobite.meal.entity.MealType;
 import com.glucobite.meal.repository.MealLogRepository;
 import com.glucobite.user.entity.User;
 import com.glucobite.user.repository.UserRepository;
+import com.glucobite.tracking.service.TrackingDateRange;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -48,7 +49,8 @@ class GlucoseRecordControllerIntegrationTest {
     void recordsLinkedGlucoseAndReturnsItByDate() throws Exception {
         User user = createUser("glucose-user");
         MealLog meal = createMeal(user, "점심");
-        String measuredAt = LocalDateTime.now().minusMinutes(30).withNano(0).toString();
+        String measuredAt = LocalDateTime.now(TrackingDateRange.KST)
+                .minusMinutes(30).withNano(0).toString();
 
         mockMvc.perform(post("/api/glucose-records")
                         .header(HttpHeaders.AUTHORIZATION, bearer(user))
@@ -66,7 +68,7 @@ class GlucoseRecordControllerIntegrationTest {
                 .andExpect(jsonPath("$.value").value(128.5))
                 .andExpect(jsonPath("$.context").value("POST_MEAL"));
 
-        String today = LocalDate.now().toString();
+        String today = LocalDate.now(TrackingDateRange.KST).toString();
         mockMvc.perform(get("/api/glucose-records")
                         .header(HttpHeaders.AUTHORIZATION, bearer(user))
                         .param("from", today)
@@ -106,7 +108,8 @@ class GlucoseRecordControllerIntegrationTest {
         User owner = createUser("meal-owner");
         User other = createUser("glucose-other");
         MealLog meal = createMeal(owner, "소유자 식사");
-        String measuredAt = LocalDateTime.now().minusMinutes(1).withNano(0).toString();
+        String measuredAt = LocalDateTime.now(TrackingDateRange.KST)
+                .minusMinutes(1).withNano(0).toString();
 
         mockMvc.perform(post("/api/glucose-records")
                         .header(HttpHeaders.AUTHORIZATION, bearer(other))
@@ -124,7 +127,7 @@ class GlucoseRecordControllerIntegrationTest {
                 """.formatted(
                 value,
                 context,
-                LocalDateTime.now().minusSeconds(1).withNano(0)
+                LocalDateTime.now(TrackingDateRange.KST).minusSeconds(1).withNano(0)
         );
     }
 
@@ -142,7 +145,7 @@ class GlucoseRecordControllerIntegrationTest {
                 new BigDecimal("300"),
                 new BigDecimal("40"),
                 new BigDecimal("5"),
-                LocalDateTime.now().minusHours(1)
+                LocalDateTime.now(TrackingDateRange.KST).minusHours(1)
         ));
     }
 

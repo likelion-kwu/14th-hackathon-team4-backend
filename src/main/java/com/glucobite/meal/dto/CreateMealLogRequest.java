@@ -5,7 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.PastOrPresent;
+import com.glucobite.common.validation.PastOrPresentKst;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
@@ -21,7 +21,7 @@ public record CreateMealLogRequest(
         @PositiveOrZero @Digits(integer = 8, fraction = 2) BigDecimal calories,
         @PositiveOrZero @Digits(integer = 8, fraction = 2) BigDecimal carb,
         @PositiveOrZero @Digits(integer = 8, fraction = 2) BigDecimal sugar,
-        @NotNull @PastOrPresent LocalDateTime eatenAt
+        @NotNull @PastOrPresentKst LocalDateTime eatenAt
 ) {
     @AssertTrue(message = "Recipe 또는 직접 입력 영양값 중 하나만 사용해야 합니다.")
     @Schema(hidden = true)

@@ -55,7 +55,8 @@ class TrendRecommendationControllerIntegrationTest {
     @Test
     void returnsDataInsufficientRecommendationWithoutInventingTrend() throws Exception {
         User user = createProfiledUser("insufficient-user", 120);
-        createMeal(user, "한 끼", "30", "5", LocalDateTime.now().minusHours(1));
+        createMeal(user, "한 끼", "30", "5",
+                LocalDateTime.now(TrackingDateRange.KST).minusHours(1));
 
         mockMvc.perform(get("/api/recommendations/trends")
                         .header(HttpHeaders.AUTHORIZATION, bearer(user)))
