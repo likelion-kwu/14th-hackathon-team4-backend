@@ -11,6 +11,8 @@ import com.glucobite.user.repository.UserRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -85,8 +87,8 @@ class AuthSignupIntegrationTest {
         );
 
         assertThat(user.getNickname()).isEqualTo("테스터");
-        assertThat(user.getPassword()).isNotEqualTo("password123!");
-        assertThat(passwordEncoder.matches("password123!", user.getPassword())).isTrue();
+        assertThat(user.getPassword()).isNotEqualTo("1234");
+        assertThat(passwordEncoder.matches("1234", user.getPassword())).isTrue();
         assertThat(profile.getSex()).isEqualTo(Sex.FEMALE);
         assertThat(profile.getHealthGoal()).isEqualTo(HealthGoal.CARB_MANAGEMENT);
         assertThat(profile.getVegetarianType()).isEqualTo(VegetarianType.LACTO_OVO);
@@ -183,19 +185,20 @@ class AuthSignupIntegrationTest {
         assertThat(userRepository.findByLoginId("future-date-user")).isEmpty();
     }
 
-    @Test
-    void rejectsPasswordLongerThanSeventyTwoUtf8Bytes() throws Exception {
-        String oversizedPasswordJson = validSignupJson("oversized-password-user", "")
-                .replace("password123!", "가".repeat(25));
+    @ParameterizedTest
+    @ValueSource(strings = {"", "123", "12345", "12a4", "１２３４"})
+    void rejectsPasswordsThatAreNotExactlyFourAsciiDigits(String password) throws Exception {
+        String invalidPasswordJson = validSignupJson("invalid-password-user", "")
+                .replace("\"password\":\"1234\"", "\"password\":\"%s\"".formatted(password));
 
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(oversizedPasswordJson))
+                        .content(invalidPasswordJson))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.fieldErrors.password").exists());
 
-        assertThat(userRepository.findByLoginId("oversized-password-user")).isEmpty();
+        assertThat(userRepository.findByLoginId("invalid-password-user")).isEmpty();
     }
 
     @Test
@@ -214,7 +217,7 @@ class AuthSignupIntegrationTest {
         return """
                 {
                   "loginId":"%s",
-                  "password":"password123!",
+                  "password":"1234",
                   "nickname":"테스터",
                   "profile":{
                     "birthDate":"2000-01-01",
