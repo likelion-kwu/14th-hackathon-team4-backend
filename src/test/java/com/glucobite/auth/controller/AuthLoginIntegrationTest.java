@@ -6,6 +6,8 @@ import com.glucobite.user.repository.UserRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -63,13 +65,13 @@ class AuthLoginIntegrationTest {
     void logsInWithValidCredentials() throws Exception {
         User user = userRepository.save(new User(
                 "login-user",
-                passwordEncoder.encode("password123!"),
+                passwordEncoder.encode("1234"),
                 "로그인 사용자"
         ));
 
         MvcResult result = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(loginJson("login-user", "password123!")))
+                        .content(loginJson("login-user", "1234")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
@@ -85,13 +87,13 @@ class AuthLoginIntegrationTest {
     void rejectsWrongPasswordWithoutRevealingUserExistence() throws Exception {
         userRepository.save(new User(
                 "login-user",
-                passwordEncoder.encode("password123!"),
+                passwordEncoder.encode("1234"),
                 "로그인 사용자"
         ));
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(loginJson("login-user", "wrong-password")))
+                        .content(loginJson("login-user", "9999")))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"))
                 .andExpect(jsonPath("$.message").value("아이디 또는 비밀번호가 올바르지 않습니다."));
@@ -101,7 +103,7 @@ class AuthLoginIntegrationTest {
     void rejectsUnknownLoginIdWithSameResponse() throws Exception {
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(loginJson("unknown-user", "wrong-password")))
+                        .content(loginJson("unknown-user", "9999")))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"))
                 .andExpect(jsonPath("$.message").value("아이디 또는 비밀번호가 올바르지 않습니다."));
@@ -118,11 +120,12 @@ class AuthLoginIntegrationTest {
                 .andExpect(jsonPath("$.fieldErrors.password").exists());
     }
 
-    @Test
-    void rejectsPasswordLongerThanSeventyTwoUtf8Bytes() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"123", "12345", "12a4", "１２３４"})
+    void rejectsPasswordsThatAreNotExactlyFourAsciiDigits(String password) throws Exception {
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(loginJson("login-user", "가".repeat(25))))
+                        .content(loginJson("login-user", password)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.fieldErrors.password").exists());
