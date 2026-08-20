@@ -5,6 +5,7 @@ import com.glucobite.health.repository.HealthProfileRepository;
 import com.glucobite.ingredient.repository.IngredientNutritionRepository;
 import com.glucobite.recipe.dto.RecipeRecommendationResponse;
 import com.glucobite.recipe.entity.Recipe;
+import com.glucobite.recipe.entity.RecipeType;
 import com.glucobite.recipe.repository.RecipeIngredientRepository;
 import com.glucobite.recipe.repository.RecipeRepository;
 import com.glucobite.recipe.repository.RecipeStepRepository;
@@ -59,7 +60,9 @@ class RecipeRecommendationQueryTest {
         when(dietaryRestrictionPolicy.restrictedTerms(profile)).thenReturn(Set.of());
         Recipe first = recipe(1L, "첫 번째");
         Recipe second = recipe(2L, "두 번째");
-        when(recipeRepository.findByUserIdOrderByCreatedAtDescIdDesc(7L))
+        when(recipeRepository.findByUserIdAndRecipeTypeInOrderByCreatedAtDescIdDesc(
+                7L, List.of(RecipeType.BASE, RecipeType.PERSONALIZED)
+        ))
                 .thenReturn(List.of(first, second));
         when(recipeIngredientRepository.findByRecipeIdIn(List.of(1L, 2L)))
                 .thenReturn(List.of());
@@ -76,7 +79,9 @@ class RecipeRecommendationQueryTest {
         HealthProfile profile = mock(HealthProfile.class);
         when(healthProfileRepository.findByUserId(7L)).thenReturn(Optional.of(profile));
         when(dietaryRestrictionPolicy.restrictedTerms(profile)).thenReturn(Set.of());
-        when(recipeRepository.findByUserIdOrderByCreatedAtDescIdDesc(7L)).thenReturn(List.of());
+        when(recipeRepository.findByUserIdAndRecipeTypeInOrderByCreatedAtDescIdDesc(
+                7L, List.of(RecipeType.BASE, RecipeType.PERSONALIZED)
+        )).thenReturn(List.of());
 
         RecipeRecommendationResponse response = recipeService.getRecommendations(7L);
 

@@ -16,6 +16,7 @@ import com.glucobite.recipe.dto.RecipeStepResponse;
 import com.glucobite.recipe.dto.RecipeSummaryResponse;
 import com.glucobite.recipe.entity.Recipe;
 import com.glucobite.recipe.entity.RecipeIngredient;
+import com.glucobite.recipe.entity.RecipeType;
 import com.glucobite.recipe.exception.RecipeNotFoundException;
 import com.glucobite.recipe.repository.RecipeIngredientRepository;
 import com.glucobite.recipe.repository.RecipeRepository;
@@ -39,6 +40,10 @@ import java.util.stream.Collectors;
 public class RecipeService {
 
     private static final int RECOMMENDATION_LIMIT = 20;
+    private static final List<RecipeType> VISIBLE_RECIPE_TYPES = List.of(
+            RecipeType.BASE,
+            RecipeType.PERSONALIZED
+    );
     private static final String RECOMMENDATION_REASON =
             "회원님의 알레르기와 하루 탄수화물 목표를 반영한 추천입니다.";
 
@@ -82,8 +87,12 @@ public class RecipeService {
     ) {
         Pageable pageable = PageRequest.of(page, size, DEFAULT_SORT);
         Page<Recipe> recipes = completed == null
-                ? recipeRepository.findByUserId(userId, pageable)
-                : recipeRepository.findByUserIdAndCompleted(userId, completed, pageable);
+                ? recipeRepository.findByUserIdAndRecipeTypeIn(
+                        userId, VISIBLE_RECIPE_TYPES, pageable
+                )
+                : recipeRepository.findByUserIdAndCompletedAndRecipeTypeIn(
+                        userId, completed, VISIBLE_RECIPE_TYPES, pageable
+                );
 
         return RecipePageResponse.from(recipes.map(RecipeSummaryResponse::from));
     }
@@ -117,7 +126,10 @@ public class RecipeService {
                 .orElseThrow(HealthProfileNotFoundException::new);
         Set<String> restrictedTerms = dietaryRestrictionPolicy.restrictedTerms(profile);
 
-        List<Recipe> recipes = recipeRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId);
+        List<Recipe> recipes = recipeRepository
+                .findByUserIdAndRecipeTypeInOrderByCreatedAtDescIdDesc(
+                        userId, VISIBLE_RECIPE_TYPES
+                );
         List<Long> recipeIds = recipes.stream().map(Recipe::getId).toList();
         Map<Long, List<RecipeIngredient>> ingredientsByRecipe = loadIngredientsByRecipe(recipeIds);
         Map<Long, IngredientNutrition> nutritionMap = loadNutritionMap(
