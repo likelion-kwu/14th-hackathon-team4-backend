@@ -9,6 +9,8 @@ import com.glucobite.recipe.exception.InvalidRecipeSubstitutionException;
 import com.glucobite.recipe.exception.InvalidSubstituteIngredientException;
 import com.glucobite.recipe.exception.RecipeIngredientNotFoundException;
 import com.glucobite.recipe.exception.RecipeNotFoundException;
+import com.glucobite.recipe.exception.RecipeNotPersonalizableException;
+import com.glucobite.recipe.exception.RecipePersonalizationGenerationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.context.MessageSourceResolvable;
@@ -115,6 +117,26 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleRecipeNotFound(RecipeNotFoundException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiErrorResponse.of(
                 "RECIPE_NOT_FOUND",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(RecipeNotPersonalizableException.class)
+    public ResponseEntity<ApiErrorResponse> handleRecipeNotPersonalizable(
+            RecipeNotPersonalizableException exception
+    ) {
+        return ResponseEntity.badRequest().body(ApiErrorResponse.of(
+                "RECIPE_NOT_PERSONALIZABLE",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(RecipePersonalizationGenerationException.class)
+    public ResponseEntity<ApiErrorResponse> handleRecipePersonalizationGeneration(
+            RecipePersonalizationGenerationException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ApiErrorResponse.of(
+                "RECIPE_PERSONALIZATION_GENERATION_FAILED",
                 exception.getMessage()
         ));
     }

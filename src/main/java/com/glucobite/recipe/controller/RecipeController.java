@@ -3,6 +3,7 @@ package com.glucobite.recipe.controller;
 import com.glucobite.common.config.OpenApiConfig;
 import com.glucobite.common.exception.ApiErrorResponse;
 import com.glucobite.recipe.dto.IngredientAlternativeListResponse;
+import com.glucobite.recipe.dto.GeneratePersonalizedRecipeRequest;
 import com.glucobite.recipe.dto.PersonalizedRecipeDetailResponse;
 import com.glucobite.recipe.dto.RecipeDetailResponse;
 import com.glucobite.recipe.dto.RecipePageResponse;
@@ -13,6 +14,7 @@ import com.glucobite.recipe.dto.RecipeSubstitutionRequest;
 import com.glucobite.recipe.dto.SavePersonalizedRecipeRequest;
 import com.glucobite.recipe.dto.SavedPersonalizedRecipeResponse;
 import com.glucobite.recipe.service.RecipeService;
+import com.glucobite.recipe.service.RecipePersonalizationCandidateService;
 import com.glucobite.recipe.service.RecipePersonalizationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -46,13 +48,16 @@ public class RecipeController {
 
     private final RecipeService recipeService;
     private final RecipePersonalizationService personalizationService;
+    private final RecipePersonalizationCandidateService candidateService;
 
     public RecipeController(
             RecipeService recipeService,
-            RecipePersonalizationService personalizationService
+            RecipePersonalizationService personalizationService,
+            RecipePersonalizationCandidateService candidateService
     ) {
         this.recipeService = recipeService;
         this.personalizationService = personalizationService;
+        this.candidateService = candidateService;
     }
 
     @GetMapping
@@ -150,22 +155,32 @@ public class RecipeController {
         return recipeService.getRecipeSteps(parseUserId(jwt), recipeId);
     }
 
-    @GetMapping("/{recipeId}/personalized")
-    @Operation(summary = "개인화 레시피 상세 조회",
-            description = "건강 프로필을 기준으로 안전한 대체 재료를 적용한 계산 결과를 반환합니다.")
+    @PostMapping("/{recipeId}/personalized")
+    @Operation(summary = "GPT 개인화 레시피 후보 생성",
+            description = "completed=false인 BASE Recipe와 건강 프로필을 분석해 GPT 후보를 생성하고 저장합니다. "
+                    + "다른 후보를 원하면 직전 candidate ID를 전달합니다.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 성공",
+            @ApiResponse(responseCode = "201", description = "후보 생성 성공",
                     content = @Content(schema = @Schema(implementation = PersonalizedRecipeDetailResponse.class))),
+            @ApiResponse(responseCode = "400", description = "개인화할 수 없는 Recipe 단계",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
             @ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "소유한 레시피 또는 건강 프로필이 없음",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "502", description = "OpenAI 호출 또는 응답 검증 실패",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
-    public PersonalizedRecipeDetailResponse getPersonalizedRecipe(
+    public ResponseEntity<PersonalizedRecipeDetailResponse> generatePersonalizedRecipe(
             @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
-            @PathVariable Long recipeId
+            @PathVariable Long recipeId,
+            @RequestBody(required = false) GeneratePersonalizedRecipeRequest request
     ) {
-        return personalizationService.getPersonalizedDetail(parseUserId(jwt), recipeId);
+        PersonalizedRecipeDetailResponse response = candidateService.generate(
+                parseUserId(jwt), recipeId, request
+        );
+        return ResponseEntity.created(URI.create("/api/recipes/" + response.candidateRecipeId()))
+                .body(response);
     }
 
     @GetMapping("/{recipeId}/ingredients/{ingredientId}/alternatives")

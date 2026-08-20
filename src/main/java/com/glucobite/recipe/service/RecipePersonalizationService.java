@@ -14,9 +14,7 @@ import com.glucobite.recipe.dto.IngredientAlternativeListResponse;
 import com.glucobite.recipe.dto.IngredientAlternativeResponse;
 import com.glucobite.recipe.dto.NutritionSummary;
 import com.glucobite.recipe.dto.PersonalizedIngredientResponse;
-import com.glucobite.recipe.dto.PersonalizedRecipeDetailResponse;
 import com.glucobite.recipe.dto.RecipeIngredientResponse;
-import com.glucobite.recipe.dto.RecipeStepResponse;
 import com.glucobite.recipe.dto.RecipeSubstitutionPreviewResponse;
 import com.glucobite.recipe.dto.RecipeSubstitutionRequest;
 import com.glucobite.recipe.dto.SavePersonalizedRecipeRequest;
@@ -50,8 +48,6 @@ import java.util.stream.Collectors;
 @Service
 public class RecipePersonalizationService {
 
-    private static final String FALLBACK_AUTO_CHANGE_REASON =
-            "회원님의 알레르기 정보를 반영해 자동 대체되었습니다.";
     private static final String FALLBACK_MANUAL_CHANGE_REASON =
             "선택한 대체 재료가 적용되었습니다.";
 
@@ -82,85 +78,6 @@ public class RecipePersonalizationService {
         this.healthProfileRepository = healthProfileRepository;
         this.nutritionCalculator = nutritionCalculator;
         this.dietaryRestrictionPolicy = dietaryRestrictionPolicy;
-    }
-
-    @Transactional(readOnly = true)
-    public PersonalizedRecipeDetailResponse getPersonalizedDetail(Long userId, Long recipeId) {
-        Recipe recipe = findOwnedRecipe(userId, recipeId);
-        HealthProfile profile = findHealthProfile(userId);
-        List<RecipeIngredient> ingredients = recipeIngredientRepository.findByRecipeId(recipeId);
-        List<RecipeStepResponse> steps = recipeStepRepository.findByRecipeIdOrderByStepOrderAsc(recipeId)
-                .stream()
-                .map(RecipeStepResponse::from)
-                .toList();
-
-        Set<String> restrictedTerms = dietaryRestrictionPolicy.restrictedTerms(profile);
-        Map<Long, IngredientSubstitute> autoSubstitutes = resolveAutoSubstitutes(
-                ingredients,
-                restrictedTerms
-        );
-        Set<Long> nutritionIds = new HashSet<>();
-        for (RecipeIngredient ingredient : ingredients) {
-            nutritionIds.add(ingredient.getIngredient().getId());
-        }
-        for (IngredientSubstitute substitute : autoSubstitutes.values()) {
-            nutritionIds.add(substitute.getSubstitute().getId());
-        }
-        Map<Long, IngredientNutrition> nutritionMap = loadNutritionMap(nutritionIds);
-
-        List<PersonalizedIngredientResponse> ingredientResponses = new ArrayList<>();
-        List<NutritionSummary> originalContributions = new ArrayList<>();
-        List<NutritionSummary> personalizedContributions = new ArrayList<>();
-
-        for (RecipeIngredient ingredient : ingredients) {
-            Ingredient source = ingredient.getIngredient();
-            BigDecimal originalAmount = ingredient.getAmount();
-            IngredientNutrition originalNutrition = nutritionMap.get(source.getId());
-            NutritionSummary originalContribution = nutritionCalculator.contribute(originalNutrition, originalAmount);
-            originalContributions.add(originalContribution);
-
-            IngredientSubstitute substitute = autoSubstitutes.get(source.getId());
-            if (substitute == null) {
-                ingredientResponses.add(new PersonalizedIngredientResponse(
-                        source.getId(),
-                        source.getTitle(),
-                        originalAmount,
-                        false,
-                        null
-                ));
-                personalizedContributions.add(originalContribution);
-            } else {
-                Ingredient substituteIngredient = substitute.getSubstitute();
-                BigDecimal newAmount = recommendedAmount(originalAmount, substitute.getRatio());
-                IngredientNutrition substituteNutrition = nutritionMap.get(substituteIngredient.getId());
-                NutritionSummary substituteContribution = nutritionCalculator
-                        .contribute(substituteNutrition, newAmount);
-                ingredientResponses.add(new PersonalizedIngredientResponse(
-                        substituteIngredient.getId(),
-                        substituteIngredient.getTitle(),
-                        newAmount,
-                        true,
-                        Optional.ofNullable(substitute.getReason()).orElse(FALLBACK_AUTO_CHANGE_REASON)
-                ));
-                personalizedContributions.add(substituteContribution);
-            }
-        }
-
-        NutritionSummary originalTotal = nutritionCalculator.sum(originalContributions);
-        NutritionSummary personalizedTotal = nutritionCalculator.sum(personalizedContributions);
-        NutritionSummary changes = nutritionCalculator.changes(originalTotal, personalizedTotal);
-
-        return new PersonalizedRecipeDetailResponse(
-                recipe.getId(),
-                recipe.getTitle(),
-                recipe.getDescription(),
-                recipe.getCookingTime(),
-                originalTotal,
-                personalizedTotal,
-                changes,
-                ingredientResponses,
-                steps
-        );
     }
 
     @Transactional(readOnly = true)
@@ -405,29 +322,6 @@ public class RecipePersonalizationService {
                         item.changeReason()
                 ))
                 .toList();
-    }
-
-    private Map<Long, IngredientSubstitute> resolveAutoSubstitutes(
-            List<RecipeIngredient> ingredients,
-            Set<String> restrictedTerms
-    ) {
-        Map<Long, IngredientSubstitute> substitutes = new java.util.LinkedHashMap<>();
-        if (restrictedTerms.isEmpty()) {
-            return substitutes;
-        }
-        for (RecipeIngredient ingredient : ingredients) {
-            Ingredient source = ingredient.getIngredient();
-            if (!dietaryRestrictionPolicy.isRestricted(source, restrictedTerms)) {
-                continue;
-            }
-            ingredientSubstituteRepository.findByIngredientIdOrderByIdAsc(source.getId()).stream()
-                    .filter(substitute -> !dietaryRestrictionPolicy.isRestricted(
-                            substitute.getSubstitute(), restrictedTerms
-                    ))
-                    .findFirst()
-                    .ifPresent(substitute -> substitutes.put(source.getId(), substitute));
-        }
-        return substitutes;
     }
 
     private Recipe findOwnedRecipe(Long userId, Long recipeId) {

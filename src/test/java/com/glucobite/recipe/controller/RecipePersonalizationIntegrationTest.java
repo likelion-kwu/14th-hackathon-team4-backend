@@ -17,6 +17,9 @@ import com.glucobite.ingredient.repository.IngredientSubstituteRepository;
 import com.glucobite.recipe.entity.Recipe;
 import com.glucobite.recipe.entity.RecipeIngredient;
 import com.glucobite.recipe.entity.RecipeStep;
+import com.glucobite.recipe.entity.RecipeType;
+import com.glucobite.recipe.personalization.GeneratedPersonalization;
+import com.glucobite.recipe.personalization.RecipePersonalizationGenerator;
 import com.glucobite.recipe.repository.RecipeIngredientRepository;
 import com.glucobite.recipe.repository.RecipeRepository;
 import com.glucobite.recipe.repository.RecipeStepRepository;
@@ -32,6 +35,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -45,6 +49,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -63,6 +69,7 @@ class RecipePersonalizationIntegrationTest {
     @Autowired private JwtTokenService jwtTokenService;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private ObjectMapper objectMapper;
+    @MockitoBean private RecipePersonalizationGenerator personalizationGenerator;
 
     private User owner;
     private User anotherUser;
@@ -109,13 +116,74 @@ class RecipePersonalizationIntegrationTest {
     }
 
     @Test
-    void autoSubstitutionSkipsAnotherAllergenAndUsesSafeCandidate() throws Exception {
-        mockMvc.perform(get("/api/recipes/{id}/personalized", recipe.getId())
-                        .header("Authorization", bearer(owner)))
-                .andExpect(status().isOk())
+    void generatesAndPersistsGptPersonalizationCandidate() throws Exception {
+        when(personalizationGenerator.generate(any())).thenReturn(generatedCandidate(
+                "고단백질 위주 수정안",
+                "닭가슴살 콜리플라워 볶음",
+                chicken.getId(),
+                cauliflower.getId()
+        ));
+
+        MvcResult result = mockMvc.perform(post("/api/recipes/{id}/personalized", recipe.getId())
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isCreated())
+                .andExpect(header().exists("Location"))
+                .andExpect(jsonPath("$.originalRecipeId").value(recipe.getId()))
+                .andExpect(jsonPath("$.label").value("고단백질 위주 수정안"))
                 .andExpect(jsonPath("$.ingredients[0].ingredientId").value(chicken.getId()))
                 .andExpect(jsonPath("$.ingredients[0].changed").value(true))
-                .andExpect(jsonPath("$.ingredients[0].changeReason").value("안전한 저지방 후보"));
+                .andExpect(jsonPath("$.originalNutrition.calories").value(350.0000))
+                .andExpect(jsonPath("$.personalizedNutrition.calories").value(190.0000))
+                .andReturn();
+
+        Long candidateId = objectMapper.readTree(result.getResponse().getContentAsByteArray())
+                .get("candidateRecipeId").asLong();
+        Recipe candidate = recipeRepository.findById(candidateId).orElseThrow();
+        assertThat(candidate.getRecipeType()).isEqualTo(RecipeType.PERSONALIZATION_CANDIDATE);
+        assertThat(candidate.isCompleted()).isFalse();
+        assertThat(candidate.getSourceRecipe().getId()).isEqualTo(recipe.getId());
+        assertThat(result.getResponse().getHeader("Location"))
+                .isEqualTo("/api/recipes/" + candidateId);
+    }
+
+    @Test
+    void passesPreviousCandidateToGeneratorWhenRerolling() throws Exception {
+        Recipe previous = recipeRepository.save(Recipe.personalizationCandidate(
+                recipe,
+                "이전 닭가슴살 볶음",
+                "이전 후보",
+                20,
+                new BigDecimal("190.00"),
+                "이전 수정안",
+                "이전 변경 이유",
+                "resp_previous"
+        ));
+        recipeIngredientRepository.save(new RecipeIngredient(previous, chicken, BigDecimal.ONE));
+        when(personalizationGenerator.generate(any())).thenAnswer(invocation -> {
+            var context = invocation.getArgument(0,
+                    com.glucobite.recipe.personalization.PersonalizationContext.class);
+            assertThat(context.previousCandidate()).isNotNull();
+            assertThat(context.previousCandidate().title()).isEqualTo("이전 닭가슴살 볶음");
+            assertThat(context.previousCandidate().ingredients()).containsExactly("닭가슴살");
+            return generatedCandidate(
+                    "새로운 저탄수 수정안",
+                    "콜리플라워 볶음",
+                    cauliflower.getId(),
+                    chicken.getId()
+            );
+        });
+
+        mockMvc.perform(post("/api/recipes/{id}/personalized", recipe.getId())
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"previousCandidateId\":" + previous.getId() + "}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.candidateRecipeId").value(org.hamcrest.Matchers.not(
+                        previous.getId().intValue()
+                )))
+                .andExpect(jsonPath("$.label").value("새로운 저탄수 수정안"));
     }
 
     @Test
@@ -377,8 +445,10 @@ class RecipePersonalizationIntegrationTest {
                 substitutionItem(pork.getId(), chicken.getId(), "0.80")
         );
 
-        mockMvc.perform(get("/api/recipes/{id}/personalized", recipe.getId())
-                        .header("Authorization", token))
+        mockMvc.perform(post("/api/recipes/{id}/personalized", recipe.getId())
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RECIPE_NOT_FOUND"));
 
@@ -414,24 +484,56 @@ class RecipePersonalizationIntegrationTest {
         ));
         recipeIngredientRepository.save(new RecipeIngredient(otherRecipe, pork, BigDecimal.ONE));
 
-        mockMvc.perform(get("/api/recipes/{id}/personalized", otherRecipe.getId())
-                        .header("Authorization", bearer(anotherUser)))
+        mockMvc.perform(post("/api/recipes/{id}/personalized", otherRecipe.getId())
+                        .header("Authorization", bearer(anotherUser))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("HEALTH_PROFILE_NOT_FOUND"));
     }
 
     @Test
-    void leavesOriginalWhenVegetarianProfileHasNoSafeCandidate() throws Exception {
+    void rejectsGeneratedCandidateThatViolatesHealthRestrictions() throws Exception {
         User vegan = userRepository.save(new User("vegan-owner", "encoded-password", "비건"));
         saveProfile(vegan, VegetarianType.VEGAN, "돼지고기");
         Recipe veganRecipe = recipeRepository.save(new Recipe(vegan, "비건 대체 테스트", null, 10));
         recipeIngredientRepository.save(new RecipeIngredient(veganRecipe, pork, BigDecimal.ONE));
+        when(personalizationGenerator.generate(any())).thenReturn(generatedCandidate(
+                "잘못된 수정안", "돼지고기 유지", pork.getId(), rice.getId()
+        ));
 
-        mockMvc.perform(get("/api/recipes/{id}/personalized", veganRecipe.getId())
-                        .header("Authorization", bearer(vegan)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ingredients[0].ingredientId").value(pork.getId()))
-                .andExpect(jsonPath("$.ingredients[0].changed").value(false));
+        mockMvc.perform(post("/api/recipes/{id}/personalized", veganRecipe.getId())
+                        .header("Authorization", bearer(vegan))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code")
+                        .value("RECIPE_PERSONALIZATION_GENERATION_FAILED"));
+    }
+
+    private GeneratedPersonalization generatedCandidate(
+            String label,
+            String title,
+            Long firstIngredientId,
+            Long secondIngredientId
+    ) {
+        return new GeneratedPersonalization(
+                "resp_test",
+                label,
+                title,
+                "건강 목표에 맞춘 후보",
+                20,
+                "탄수화물을 낮추고 단백질을 보강했습니다.",
+                List.of(
+                        new GeneratedPersonalization.IngredientAmount(
+                                firstIngredientId, BigDecimal.ONE
+                        ),
+                        new GeneratedPersonalization.IngredientAmount(
+                                secondIngredientId, BigDecimal.ONE
+                        )
+                ),
+                List.of("재료를 손질한다.", "팬에서 볶는다.")
+        );
     }
 
     private Ingredient saveIngredient(String title, String calories, String carb, String protein) {
