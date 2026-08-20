@@ -3,6 +3,7 @@ package com.glucobite.auth.controller;
 import com.glucobite.health.repository.HealthProfileRepository;
 import com.glucobite.user.entity.User;
 import com.glucobite.user.repository.UserRepository;
+import com.glucobite.auth.repository.RefreshTokenRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,9 @@ class AuthLoginIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
+
     @BeforeEach
     void cleanUpBeforeTest() {
         cleanUp();
@@ -57,6 +61,7 @@ class AuthLoginIntegrationTest {
     }
 
     private void cleanUp() {
+        refreshTokenRepository.deleteAll();
         healthProfileRepository.deleteAll();
         userRepository.deleteAll();
     }

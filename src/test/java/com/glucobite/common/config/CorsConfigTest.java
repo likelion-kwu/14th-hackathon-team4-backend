@@ -82,12 +82,12 @@ class CorsConfigTest {
     }
 
     @Test
-    void doesNotAllowCredentials() throws Exception {
+    void allowsCredentialsForRefreshTokenCookie() throws Exception {
         mockMvc.perform(options("/api/auth/login")
                         .header("Origin", ALLOWED_ORIGIN)
                         .header("Access-Control-Request-Method", "POST"))
                 .andExpect(status().isOk())
-                .andExpect(header().doesNotExist("Access-Control-Allow-Credentials"));
+                .andExpect(header().string("Access-Control-Allow-Credentials", "true"));
     }
 
     @Test

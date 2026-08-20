@@ -80,6 +80,36 @@ class OpenApiConfigTest {
     }
 
     @Test
+    void documentsRefreshAndLogoutContracts() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/auth/refresh'].post.summary")
+                        .value("Access Token 갱신"))
+                .andExpect(jsonPath("$.paths['/api/auth/refresh'].post.responses['200']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/auth/refresh'].post.responses['401']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/auth/logout'].post.summary")
+                        .value("로그아웃"))
+                .andExpect(jsonPath("$.paths['/api/auth/logout'].post.responses['204']")
+                        .exists());
+    }
+
+    @Test
+    void documentsCurrentUserContract() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/users/me'].get.summary")
+                        .value("현재 사용자 조회"))
+                .andExpect(jsonPath("$.paths['/api/users/me'].get.security[0].bearerAuth")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.CurrentUserResponse.properties.userId")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.CurrentUserResponse.properties.password")
+                        .doesNotExist());
+    }
+
+    @Test
     void documentsPublicAllergenLookup() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
