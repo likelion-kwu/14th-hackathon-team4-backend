@@ -2,7 +2,6 @@ package com.glucobite.recipe.service;
 
 import com.glucobite.auth.exception.InvalidCredentialsException;
 import com.glucobite.ingredient.entity.Ingredient;
-import com.glucobite.ingredient.entity.IngredientNutrition;
 import com.glucobite.ingredient.repository.IngredientNutritionRepository;
 import com.glucobite.ingredient.repository.IngredientRepository;
 import com.glucobite.recipe.dto.ImportedRecipeResponse;
@@ -110,7 +109,7 @@ public class RecipeImportService {
         User user = userRepository.findById(userId).orElseThrow(InvalidCredentialsException::new);
         List<ResolvedIngredient> resolvedIngredients = resolveIngredients(analyzed.ingredients());
         NutritionSummary totalNutrition = nutritionCalculator.sum(resolvedIngredients.stream()
-                .map(item -> nutritionCalculator.contribute(item.nutrition(), item.amount()))
+                .map(item -> nutritionCalculator.contributePerGram(item.nutrition(), item.amount()))
                 .toList());
         requireNonNegativeWithin(
                 totalNutrition.calories(),
@@ -132,7 +131,12 @@ public class RecipeImportService {
         );
         List<RecipeIngredient> recipeIngredients = recipeIngredientRepository.saveAll(
                 resolvedIngredients.stream()
-                        .map(item -> new RecipeIngredient(recipe, item.ingredient(), scale(item.amount())))
+                        .map(item -> new RecipeIngredient(
+                                recipe,
+                                item.ingredient(),
+                                scale(item.amount()),
+                                snapshot(item.nutrition())
+                        ))
                         .toList()
         );
         List<RecipeStep> steps = new ArrayList<>();
@@ -186,18 +190,17 @@ public class RecipeImportService {
         for (MergedIngredient item : merged.values()) {
             Ingredient ingredient = ingredientRepository.findFirstByTitleIgnoreCase(item.title())
                     .orElseGet(() -> ingredientRepository.save(new Ingredient(item.title())));
-            IngredientNutrition nutrition = ingredientNutritionRepository.findByIngredientId(ingredient.getId())
-                    .orElseGet(() -> ingredientNutritionRepository.save(toEntity(
-                            ingredient, item.nutrition()
-                    )));
+            NutritionSummary nutrition = ingredientNutritionRepository
+                    .findByIngredientId(ingredient.getId())
+                    .map(nutritionCalculator::toSummary)
+                    .orElse(item.nutrition());
             resolved.add(new ResolvedIngredient(ingredient, nutrition, item.amount()));
         }
         return resolved;
     }
 
-    private IngredientNutrition toEntity(Ingredient ingredient, NutritionSummary nutrition) {
-        return new IngredientNutrition(
-                ingredient,
+    private RecipeIngredient.NutritionSnapshot snapshot(NutritionSummary nutrition) {
+        return new RecipeIngredient.NutritionSnapshot(
                 scaleNutritionPerGram(nutrition.calories()),
                 scaleNutritionPerGram(nutrition.carb()),
                 scaleNutritionPerGram(nutrition.protein()),
@@ -323,7 +326,7 @@ public class RecipeImportService {
 
     private record ResolvedIngredient(
             Ingredient ingredient,
-            IngredientNutrition nutrition,
+            NutritionSummary nutrition,
             BigDecimal amount
     ) {
     }

@@ -120,8 +120,19 @@ public class RecipePersonalizationCandidateService {
                         nutrition -> nutrition.getIngredient().getId(),
                         Function.identity()
                 ));
+        Map<Long, RecipeIngredient> sourceIngredients = recipeIngredients.stream()
+                .collect(Collectors.toMap(
+                        item -> item.getIngredient().getId(),
+                        Function.identity()
+                ));
         List<PersonalizationContext.CatalogIngredient> catalog = ingredientRepository.findAll().stream()
-                .map(ingredient -> toCatalogIngredient(ingredient, nutritions.get(ingredient.getId())))
+                .map(ingredient -> toCatalogIngredient(
+                        ingredient,
+                        resolveNutrition(
+                                sourceIngredients.get(ingredient.getId()),
+                                nutritions.get(ingredient.getId())
+                        )
+                ))
                 .toList();
         PersonalizationContext.PreviousCandidate previous = previousCandidateId == null
                 ? null
@@ -207,9 +218,27 @@ public class RecipePersonalizationCandidateService {
                         .toList()
         );
         NutritionSummary originalNutrition = calculateNutrition(originalIngredients, nutritions);
+        Map<Long, RecipeIngredient> originalByIngredientId = originalIngredients.stream()
+                .collect(Collectors.toMap(
+                        item -> item.getIngredient().getId(),
+                        Function.identity()
+                ));
+        Map<Long, NutritionSummary> generatedNutritions = new LinkedHashMap<>();
+        for (GeneratedPersonalization.IngredientAmount item : generated.ingredients()) {
+            NutritionSummary nutrition = resolveNutrition(
+                    originalByIngredientId.get(item.ingredientId()),
+                    nutritions.get(item.ingredientId())
+            );
+            if (nutrition == null) {
+                throw new RecipePersonalizationGenerationException(
+                        "OpenAI 후보 재료의 영양정보가 없습니다."
+                );
+            }
+            generatedNutritions.put(item.ingredientId(), nutrition);
+        }
         NutritionSummary personalizedNutrition = nutritionCalculator.sum(generated.ingredients().stream()
-                .map(item -> nutritionCalculator.contribute(
-                        nutritions.get(item.ingredientId()), item.amount()
+                .map(item -> nutritionCalculator.contributePerGram(
+                        generatedNutritions.get(item.ingredientId()), item.amount()
                 ))
                 .toList());
 
@@ -228,7 +257,8 @@ public class RecipePersonalizationCandidateService {
                 .map(item -> new RecipeIngredient(
                         candidate,
                         catalog.get(item.ingredientId()),
-                        item.amount().setScale(2, RoundingMode.HALF_UP)
+                        item.amount().setScale(2, RoundingMode.HALF_UP),
+                        snapshot(generatedNutritions.get(item.ingredientId()))
                 ))
                 .toList();
         recipeIngredientRepository.saveAll(candidateIngredients);
@@ -322,9 +352,32 @@ public class RecipePersonalizationCandidateService {
     ) {
         return nutritionCalculator.sum(ingredients.stream()
                 .map(item -> nutritionCalculator.contribute(
-                        nutritions.get(item.getIngredient().getId()), item.getAmount()
+                        item,
+                        nutritions.get(item.getIngredient().getId())
                 ))
                 .toList());
+    }
+
+    private NutritionSummary resolveNutrition(
+            RecipeIngredient recipeIngredient,
+            IngredientNutrition fallback
+    ) {
+        if (recipeIngredient == null) {
+            return nutritionCalculator.toSummary(fallback);
+        }
+        return nutritionCalculator.resolvePerGram(recipeIngredient, fallback);
+    }
+
+    private RecipeIngredient.NutritionSnapshot snapshot(NutritionSummary nutrition) {
+        return new RecipeIngredient.NutritionSnapshot(
+                nutrition.calories(),
+                nutrition.carb(),
+                nutrition.protein(),
+                nutrition.fat(),
+                nutrition.fiber(),
+                nutrition.sugar(),
+                nutrition.sodium()
+        );
     }
 
     private Set<Long> unchangedIngredientIds(
@@ -349,18 +402,18 @@ public class RecipePersonalizationCandidateService {
 
     private PersonalizationContext.CatalogIngredient toCatalogIngredient(
             Ingredient ingredient,
-            IngredientNutrition nutrition
+            NutritionSummary nutrition
     ) {
         return new PersonalizationContext.CatalogIngredient(
                 ingredient.getId(),
                 ingredient.getTitle(),
-                nutrition == null ? null : nutrition.getCalories(),
-                nutrition == null ? null : nutrition.getCarb(),
-                nutrition == null ? null : nutrition.getProtein(),
-                nutrition == null ? null : nutrition.getFat(),
-                nutrition == null ? null : nutrition.getFiber(),
-                nutrition == null ? null : nutrition.getSugar(),
-                nutrition == null ? null : nutrition.getSodium()
+                nutrition == null ? null : nutrition.calories(),
+                nutrition == null ? null : nutrition.carb(),
+                nutrition == null ? null : nutrition.protein(),
+                nutrition == null ? null : nutrition.fat(),
+                nutrition == null ? null : nutrition.fiber(),
+                nutrition == null ? null : nutrition.sugar(),
+                nutrition == null ? null : nutrition.sodium()
         );
     }
 

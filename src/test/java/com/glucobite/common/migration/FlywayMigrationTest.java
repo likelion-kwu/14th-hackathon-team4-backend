@@ -142,6 +142,25 @@ class FlywayMigrationTest {
         ));
     }
 
+    @Test
+    void appliesRecipeIngredientNutritionSnapshotMigration() {
+        assertTrue(isApplied("10"));
+        assertEquals(7L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_name = 'recipe_ingredients'
+                  AND column_name IN (
+                    'calories_per_gram', 'carb_per_gram', 'protein_per_gram',
+                    'fat_per_gram', 'fiber_per_gram', 'sugar_per_gram', 'sodium_per_gram'
+                  )
+                  AND numeric_precision = 14
+                  AND numeric_scale = 6
+                """,
+                Long.class
+        ));
+    }
+
     private boolean isApplied(String version) {
         return List.of(flyway.info().applied()).stream()
                 .anyMatch(migration -> version.equals(migration.getVersion().getVersion()));
