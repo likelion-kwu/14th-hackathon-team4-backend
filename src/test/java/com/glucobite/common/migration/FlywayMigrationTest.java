@@ -186,6 +186,31 @@ class FlywayMigrationTest {
         ));
     }
 
+    @Test
+    void appliesRecipeImportDedupeKeyMigration() {
+        assertTrue(isApplied("12"));
+        assertEquals(1L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_name = 'recipes'
+                  AND column_name = 'import_dedupe_key'
+                  AND is_nullable = 'YES'
+                """,
+                Long.class
+        ));
+        assertEquals(1L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.table_constraints
+                WHERE table_name = 'recipes'
+                  AND constraint_name = 'uk_recipes_user_import_dedupe_key'
+                  AND constraint_type = 'UNIQUE'
+                """,
+                Long.class
+        ));
+    }
+
     private boolean isApplied(String version) {
         return List.of(flyway.info().applied()).stream()
                 .anyMatch(migration -> version.equals(migration.getVersion().getVersion()));

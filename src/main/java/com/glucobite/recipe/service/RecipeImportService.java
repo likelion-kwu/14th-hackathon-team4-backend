@@ -2,6 +2,7 @@ package com.glucobite.recipe.service;
 
 import com.glucobite.auth.exception.InvalidCredentialsException;
 import com.glucobite.ingredient.entity.Ingredient;
+import com.glucobite.ingredient.entity.IngredientNutrition;
 import com.glucobite.ingredient.repository.IngredientNutritionRepository;
 import com.glucobite.ingredient.repository.IngredientRepository;
 import com.glucobite.recipe.dto.ImportedRecipeResponse;
@@ -14,6 +15,7 @@ import com.glucobite.recipe.entity.RecipeIngredient;
 import com.glucobite.recipe.entity.RecipeStep;
 import com.glucobite.recipe.exception.InvalidRecipeAnalysisException;
 import com.glucobite.recipe.importing.AnalyzedRecipe;
+import com.glucobite.recipe.importing.RecipeImportResult;
 import com.glucobite.recipe.importing.RecipeTextAnalyzer;
 import com.glucobite.recipe.importing.RecipeSourceMetadata;
 import com.glucobite.recipe.repository.RecipeIngredientRepository;
@@ -21,6 +23,7 @@ import com.glucobite.recipe.repository.RecipeRepository;
 import com.glucobite.recipe.repository.RecipeStepRepository;
 import com.glucobite.user.entity.User;
 import com.glucobite.user.repository.UserRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -31,6 +34,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class RecipeImportService {
@@ -100,6 +107,55 @@ public class RecipeImportService {
         return response;
     }
 
+    public Optional<ImportedRecipeResponse> findImportedSource(
+            Long userId,
+            RecipeImportType importType,
+            String sourceExternalId
+    ) {
+        Optional<ImportedRecipeResponse> response = transactionTemplate.execute(status ->
+                recipeRepository
+                        .findFirstByUserIdAndImportTypeAndSourceExternalIdOrderByIdAsc(
+                                userId,
+                                importType,
+                                sourceExternalId
+                        )
+                        .map(this::loadResponse)
+        );
+        return response == null ? Optional.empty() : response;
+    }
+
+    public RecipeImportResult importUniqueSource(
+            Long userId,
+            String sourceText,
+            RecipeImportType importType,
+            RecipeSourceMetadata sourceMetadata
+    ) {
+        Optional<ImportedRecipeResponse> existing = findImportedSource(
+                userId,
+                importType,
+                sourceMetadata.externalId()
+        );
+        if (existing.isPresent()) {
+            return new RecipeImportResult(existing.get(), false);
+        }
+
+        AnalyzedRecipe analyzed = analyzer.analyze(sourceText);
+        validate(analyzed);
+        try {
+            ImportedRecipeResponse response = transactionTemplate.execute(status ->
+                    persist(userId, analyzed, importType, sourceMetadata)
+            );
+            if (response == null) {
+                throw new IllegalStateException("레시피 저장 결과가 없습니다.");
+            }
+            return new RecipeImportResult(response, true);
+        } catch (DataIntegrityViolationException exception) {
+            return findImportedSource(userId, importType, sourceMetadata.externalId())
+                    .map(response -> new RecipeImportResult(response, false))
+                    .orElseThrow(() -> exception);
+        }
+    }
+
     private ImportedRecipeResponse persist(
             Long userId,
             AnalyzedRecipe analyzed,
@@ -145,6 +201,36 @@ public class RecipeImportService {
         }
         List<RecipeStep> savedSteps = recipeStepRepository.saveAll(steps);
 
+        return toResponse(recipe, recipeIngredients, savedSteps, totalNutrition);
+    }
+
+    private ImportedRecipeResponse loadResponse(Recipe recipe) {
+        List<RecipeIngredient> ingredients = recipeIngredientRepository.findByRecipeId(recipe.getId());
+        List<RecipeStep> steps = recipeStepRepository.findByRecipeIdOrderByStepOrderAsc(recipe.getId());
+        Set<Long> ingredientIds = ingredients.stream()
+                .map(item -> item.getIngredient().getId())
+                .collect(Collectors.toSet());
+        Map<Long, IngredientNutrition> nutritions =
+                ingredientNutritionRepository.findByIngredientIdIn(ingredientIds).stream()
+                        .collect(Collectors.toMap(
+                                item -> item.getIngredient().getId(),
+                                Function.identity()
+                        ));
+        NutritionSummary totalNutrition = nutritionCalculator.sum(ingredients.stream()
+                .map(item -> nutritionCalculator.contribute(
+                        item,
+                        nutritions.get(item.getIngredient().getId())
+                ))
+                .toList());
+        return toResponse(recipe, ingredients, steps, totalNutrition);
+    }
+
+    private ImportedRecipeResponse toResponse(
+            Recipe recipe,
+            List<RecipeIngredient> ingredients,
+            List<RecipeStep> steps,
+            NutritionSummary totalNutrition
+    ) {
         return new ImportedRecipeResponse(
                 recipe.getId(),
                 recipe.getTitle(),
@@ -157,14 +243,14 @@ public class RecipeImportService {
                 recipe.getSourceExternalId(),
                 recipe.getImageUrl(),
                 scale(totalNutrition),
-                recipeIngredients.stream()
+                ingredients.stream()
                         .map(item -> new RecipeIngredientResponse(
                                 item.getIngredient().getId(),
                                 item.getIngredient().getTitle(),
                                 item.getAmount()
                         ))
                         .toList(),
-                savedSteps.stream().map(RecipeStepResponse::from).toList()
+                steps.stream().map(RecipeStepResponse::from).toList()
         );
     }
 
