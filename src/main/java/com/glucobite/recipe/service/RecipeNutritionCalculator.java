@@ -2,6 +2,7 @@ package com.glucobite.recipe.service;
 
 import com.glucobite.ingredient.entity.IngredientNutrition;
 import com.glucobite.recipe.dto.NutritionSummary;
+import com.glucobite.recipe.entity.RecipeIngredient;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -15,17 +16,65 @@ import java.util.Collection;
 public class RecipeNutritionCalculator {
 
     public NutritionSummary contribute(IngredientNutrition nutrition, BigDecimal amount) {
+        return contributePerGram(toSummary(nutrition), amount);
+    }
+
+    public NutritionSummary contributePerGram(NutritionSummary nutrition, BigDecimal amount) {
         if (nutrition == null || amount == null) {
             return NutritionSummary.zero();
         }
         return new NutritionSummary(
-                multiply(nutrition.getCalories(), amount),
-                multiply(nutrition.getCarb(), amount),
-                multiply(nutrition.getProtein(), amount),
-                multiply(nutrition.getFat(), amount),
-                multiply(nutrition.getFiber(), amount),
-                multiply(nutrition.getSugar(), amount),
-                multiply(nutrition.getSodium(), amount)
+                multiply(nutrition.calories(), amount),
+                multiply(nutrition.carb(), amount),
+                multiply(nutrition.protein(), amount),
+                multiply(nutrition.fat(), amount),
+                multiply(nutrition.fiber(), amount),
+                multiply(nutrition.sugar(), amount),
+                multiply(nutrition.sodium(), amount)
+        );
+    }
+
+    public NutritionSummary contribute(
+            RecipeIngredient recipeIngredient,
+            IngredientNutrition fallbackNutrition
+    ) {
+        return contributePerGram(
+                resolvePerGram(recipeIngredient, fallbackNutrition),
+                recipeIngredient.getAmount()
+        );
+    }
+
+    public NutritionSummary resolvePerGram(
+            RecipeIngredient recipeIngredient,
+            IngredientNutrition fallbackNutrition
+    ) {
+        RecipeIngredient.NutritionSnapshot snapshot = recipeIngredient.nutritionSnapshot();
+        if (snapshot != null) {
+            return new NutritionSummary(
+                    snapshot.calories(),
+                    snapshot.carb(),
+                    snapshot.protein(),
+                    snapshot.fat(),
+                    snapshot.fiber(),
+                    snapshot.sugar(),
+                    snapshot.sodium()
+            );
+        }
+        return toSummary(fallbackNutrition);
+    }
+
+    public NutritionSummary toSummary(IngredientNutrition nutrition) {
+        if (nutrition == null) {
+            return null;
+        }
+        return new NutritionSummary(
+                nutrition.getCalories(),
+                nutrition.getCarb(),
+                nutrition.getProtein(),
+                nutrition.getFat(),
+                nutrition.getFiber(),
+                nutrition.getSugar(),
+                nutrition.getSodium()
         );
     }
 

@@ -32,31 +32,31 @@ public class IngredientNutrition {
     private Ingredient ingredient;
 
     @PositiveOrZero
-    @Column(precision = 10, scale = 2)
+    @Column(precision = 14, scale = 6)
     private BigDecimal calories;
 
     @PositiveOrZero
-    @Column(precision = 10, scale = 2)
+    @Column(precision = 14, scale = 6)
     private BigDecimal carb;
 
     @PositiveOrZero
-    @Column(precision = 10, scale = 2)
+    @Column(precision = 14, scale = 6)
     private BigDecimal protein;
 
     @PositiveOrZero
-    @Column(precision = 10, scale = 2)
+    @Column(precision = 14, scale = 6)
     private BigDecimal fat;
 
     @PositiveOrZero
-    @Column(precision = 10, scale = 2)
+    @Column(precision = 14, scale = 6)
     private BigDecimal fiber;
 
     @PositiveOrZero
-    @Column(nullable = false, precision = 10, scale = 2)
+    @Column(nullable = false, precision = 14, scale = 6)
     private BigDecimal sugar;
 
     @PositiveOrZero
-    @Column(nullable = false, precision = 10, scale = 2)
+    @Column(nullable = false, precision = 14, scale = 6)
     private BigDecimal sodium;
 
     public IngredientNutrition(

@@ -15,6 +15,7 @@ import com.glucobite.recipe.importing.RecipeTextAnalyzer;
 import com.glucobite.recipe.repository.RecipeIngredientRepository;
 import com.glucobite.recipe.repository.RecipeRepository;
 import com.glucobite.recipe.repository.RecipeStepRepository;
+import com.glucobite.recipe.service.RecipeImportService;
 import com.glucobite.user.entity.User;
 import com.glucobite.user.repository.UserRepository;
 import jakarta.servlet.ServletException;
@@ -31,6 +32,11 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -57,6 +63,7 @@ class RecipeImportIntegrationTest {
     @Autowired private IngredientNutritionRepository ingredientNutritionRepository;
     @Autowired private JwtTokenService jwtTokenService;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private RecipeImportService recipeImportService;
 
     @MockitoBean private RecipeTextAnalyzer recipeTextAnalyzer;
     @MockitoSpyBean private RecipeStepRepository recipeStepRepository;
@@ -143,6 +150,94 @@ class RecipeImportIntegrationTest {
     }
 
     @Test
+    void preservesSmallPerGramNutritionValues() throws Exception {
+        given(recipeTextAnalyzer.analyze(any())).willReturn(new AnalyzedRecipe(
+                "미량 영양 레시피", null, 10,
+                List.of(ingredient(
+                        "채소", "100", "0.200001", "0.030001", "0.010001",
+                        "0.004001", "0.003001", "0.002001", "0.001001"
+                )),
+                List.of("채소를 익힌다.")
+        ));
+
+        mockMvc.perform(post("/api/recipes/import/text")
+                        .header("Authorization", bearer())
+                        .contentType("application/json")
+                        .content("{\"text\":\"미량 영양 레시피\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.nutrition.fat").value(0.40))
+                .andExpect(jsonPath("$.nutrition.fiber").value(0.30))
+                .andExpect(jsonPath("$.nutrition.sugar").value(0.20))
+                .andExpect(jsonPath("$.nutrition.sodium").value(0.10));
+
+        var saved = recipeIngredientRepository.findAll().getFirst();
+        assertThat(saved.getFatPerGram()).isEqualByComparingTo("0.004001");
+        assertThat(saved.getFiberPerGram()).isEqualByComparingTo("0.003001");
+        assertThat(saved.getSugarPerGram()).isEqualByComparingTo("0.002001");
+        assertThat(saved.getSodiumPerGram()).isEqualByComparingTo("0.001001");
+        assertThat(ingredientNutritionRepository.count()).isZero();
+    }
+
+    @Test
+    void keepsGptNutritionEstimateScopedToEachRecipe() throws Exception {
+        User otherUser = userRepository.save(new User(
+                "recipe-import-other",
+                "encoded-password",
+                "다른 사용자"
+        ));
+        given(recipeTextAnalyzer.analyze(any())).willReturn(
+                analysisWithCalories("첫 레시피", "1.1"),
+                analysisWithCalories("둘째 레시피", "2.2")
+        );
+
+        mockMvc.perform(post("/api/recipes/import/text")
+                        .header("Authorization", bearer())
+                        .contentType("application/json")
+                        .content("{\"text\":\"첫 레시피\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.nutrition.calories").value(110.00));
+
+        mockMvc.perform(post("/api/recipes/import/text")
+                        .header("Authorization", "Bearer "
+                                + jwtTokenService.issue(otherUser.getId()).accessToken())
+                        .contentType("application/json")
+                        .content("{\"text\":\"둘째 레시피\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.nutrition.calories").value(220.00));
+
+        assertThat(ingredientRepository.count()).isEqualTo(1);
+        assertThat(ingredientNutritionRepository.count()).isZero();
+        assertThat(recipeIngredientRepository.findAll())
+                .extracting(item -> item.getCaloriesPerGram())
+                .containsExactlyInAnyOrder(
+                        new BigDecimal("1.100000"),
+                        new BigDecimal("2.200000")
+                );
+    }
+
+    @Test
+    void rejectsTotalCaloriesOutsideRecipeStorageRange() throws Exception {
+        given(recipeTextAnalyzer.analyze(any())).willReturn(new AnalyzedRecipe(
+                "범위 초과 레시피", null, 10,
+                List.of(ingredient(
+                        "고열량 재료", "100000", "1000000", "0", "0", "0", "0", "0", "0"
+                )),
+                List.of("재료를 조리한다.")
+        ));
+
+        mockMvc.perform(post("/api/recipes/import/text")
+                        .header("Authorization", bearer())
+                        .contentType("application/json")
+                        .content("{\"text\":\"범위 초과 레시피\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("INVALID_RECIPE_ANALYSIS"));
+
+        assertThat(recipeRepository.count()).isZero();
+        assertThat(ingredientRepository.count()).isZero();
+        assertThat(ingredientNutritionRepository.count()).isZero();
+    }
+
+    @Test
     void mergesDuplicateIngredientNamesBeforeSaving() throws Exception {
         given(recipeTextAnalyzer.analyze(any())).willReturn(new AnalyzedRecipe(
                 "두부 요리", null, 10,
@@ -160,6 +255,32 @@ class RecipeImportIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.ingredients.length()").value(1))
                 .andExpect(jsonPath("$.ingredients[0].amount").value(150.00));
+    }
+
+    @Test
+    void concurrentImportsReuseOneNormalizedIngredient() throws Exception {
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        given(recipeTextAnalyzer.analyze(any())).willAnswer(invocation -> {
+            barrier.await(5, TimeUnit.SECONDS);
+            return analysisWithCalories("동시 레시피", "1.0");
+        });
+
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<?> first = executor.submit(() -> recipeImportService.importText(
+                    user.getId(),
+                    "첫 동시 요청"
+            ));
+            Future<?> second = executor.submit(() -> recipeImportService.importText(
+                    user.getId(),
+                    "둘째 동시 요청"
+            ));
+
+            first.get(10, TimeUnit.SECONDS);
+            second.get(10, TimeUnit.SECONDS);
+        }
+
+        assertThat(ingredientRepository.count()).isEqualTo(1);
+        assertThat(recipeRepository.count()).isEqualTo(2);
     }
 
     @Test
@@ -259,6 +380,18 @@ class RecipeImportIntegrationTest {
                         ingredient("계란", "50", "1.50", "0.01", "0.13", "0.10", "0", "0.01", "1.24")
                 ),
                 List.of("재료를 손질한다.", "팬에서 볶는다.")
+        );
+    }
+
+    private AnalyzedRecipe analysisWithCalories(String title, String calories) {
+        return new AnalyzedRecipe(
+                title,
+                null,
+                10,
+                List.of(ingredient(
+                        "공용 재료", "100", calories, "0", "0", "0", "0", "0", "0"
+                )),
+                List.of("재료를 조리한다.")
         );
     }
 

@@ -243,6 +243,8 @@ class OpenApiConfigTest {
                         .value("#/components/schemas/YouTubeRecipeImportRequest"))
                 .andExpect(jsonPath("$.paths['/api/recipes/import/youtube'].post.responses['201'].content['*/*'].schema['$ref']")
                         .value("#/components/schemas/ImportedRecipeResponse"))
+                .andExpect(jsonPath("$.paths['/api/recipes/import/youtube'].post.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ImportedRecipeResponse"))
                 .andExpect(jsonPath("$.paths['/api/recipes/import/youtube'].post.responses['400']").exists())
                 .andExpect(jsonPath("$.paths['/api/recipes/import/youtube'].post.responses['401']").exists())
                 .andExpect(jsonPath("$.paths['/api/recipes/import/youtube'].post.responses['422']").exists())

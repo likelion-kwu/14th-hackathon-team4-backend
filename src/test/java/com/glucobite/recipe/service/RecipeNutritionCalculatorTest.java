@@ -3,6 +3,9 @@ package com.glucobite.recipe.service;
 import com.glucobite.ingredient.entity.Ingredient;
 import com.glucobite.ingredient.entity.IngredientNutrition;
 import com.glucobite.recipe.dto.NutritionSummary;
+import com.glucobite.recipe.entity.Recipe;
+import com.glucobite.recipe.entity.RecipeIngredient;
+import com.glucobite.user.entity.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -77,6 +80,43 @@ class RecipeNutritionCalculatorTest {
 
         assertThat(result.calories()).isEqualByComparingTo("0");
         assertThat(result.fiber()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void prefersRecipeSnapshotOverGlobalNutrition() {
+        Ingredient ingredient = new Ingredient("두부");
+        IngredientNutrition global = new IngredientNutrition(
+                ingredient,
+                new BigDecimal("9"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO
+        );
+        Recipe recipe = new Recipe(
+                new User("snapshot-user", "encoded-password", "스냅샷"),
+                "두부 요리",
+                null,
+                10
+        );
+        RecipeIngredient recipeIngredient = new RecipeIngredient(
+                recipe,
+                ingredient,
+                new BigDecimal("100"),
+                new RecipeIngredient.NutritionSnapshot(
+                        new BigDecimal("1.5"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO
+                )
+        );
+
+        NutritionSummary result = calculator.contribute(recipeIngredient, global);
+
+        assertThat(result.calories()).isEqualByComparingTo("150");
     }
 
     @Test

@@ -96,7 +96,10 @@ public class RecipePersonalizationService {
         IngredientNutrition originalNutrition = ingredientNutritionRepository
                 .findByIngredientId(ingredientId)
                 .orElse(null);
-        NutritionSummary originalContribution = nutritionCalculator.contribute(originalNutrition, originalAmount);
+        NutritionSummary originalContribution = nutritionCalculator.contribute(
+                recipeIngredient,
+                originalNutrition
+        );
 
         List<IngredientSubstitute> substitutes = ingredientSubstituteRepository
                 .findByIngredientIdOrderByIdAsc(ingredientId).stream()
@@ -172,7 +175,12 @@ public class RecipePersonalizationService {
         recipeRepository.save(saved);
 
         List<RecipeIngredient> savedIngredients = calculation.finalIngredients().stream()
-                .map(item -> new RecipeIngredient(saved, item.ingredient(), item.amount()))
+                .map(item -> new RecipeIngredient(
+                        saved,
+                        item.ingredient(),
+                        item.amount(),
+                        snapshot(item.nutritionPerGram())
+                ))
                 .toList();
         recipeIngredientRepository.saveAll(savedIngredients);
 
@@ -249,8 +257,13 @@ public class RecipePersonalizationService {
 
         for (RecipeIngredient original : ingredients) {
             Ingredient originalIngredient = original.getIngredient();
-            originalContributions.add(nutritionCalculator.contribute(
-                    nutritionMap.get(originalIngredient.getId()),
+            IngredientNutrition originalFallback = nutritionMap.get(originalIngredient.getId());
+            NutritionSummary originalPerGram = nutritionCalculator.resolvePerGram(
+                    original,
+                    originalFallback
+            );
+            originalContributions.add(nutritionCalculator.contributePerGram(
+                    originalPerGram,
                     original.getAmount()
             ));
 
@@ -259,6 +272,9 @@ public class RecipePersonalizationService {
                     ? originalIngredient
                     : applied.registered().getSubstitute();
             BigDecimal finalAmount = applied == null ? original.getAmount() : applied.amount();
+            NutritionSummary finalNutrition = applied == null
+                    ? originalPerGram
+                    : nutritionCalculator.toSummary(nutritionMap.get(finalIngredient.getId()));
             if (!finalIngredientIds.add(finalIngredient.getId())) {
                 throw new InvalidRecipeSubstitutionException(
                         "대체 결과에 동일한 재료가 중복될 수 없습니다."
@@ -285,11 +301,12 @@ public class RecipePersonalizationService {
             finalIngredients.add(new FinalIngredient(
                     finalIngredient,
                     finalAmount,
+                    finalNutrition,
                     applied != null,
                     reason
             ));
-            personalizedContributions.add(nutritionCalculator.contribute(
-                    nutritionMap.get(finalIngredient.getId()),
+            personalizedContributions.add(nutritionCalculator.contributePerGram(
+                    finalNutrition,
                     finalAmount
             ));
         }
@@ -345,6 +362,21 @@ public class RecipePersonalizationService {
         return originalAmount.multiply(ratio).setScale(2, RoundingMode.HALF_UP);
     }
 
+    private RecipeIngredient.NutritionSnapshot snapshot(NutritionSummary nutrition) {
+        if (nutrition == null) {
+            return null;
+        }
+        return new RecipeIngredient.NutritionSnapshot(
+                nutrition.calories(),
+                nutrition.carb(),
+                nutrition.protein(),
+                nutrition.fat(),
+                nutrition.fiber(),
+                nutrition.sugar(),
+                nutrition.sodium()
+        );
+    }
+
     private record AppliedSubstitution(
             IngredientSubstitute registered,
             BigDecimal amount
@@ -354,6 +386,7 @@ public class RecipePersonalizationService {
     private record FinalIngredient(
             Ingredient ingredient,
             BigDecimal amount,
+            NutritionSummary nutritionPerGram,
             boolean changed,
             String changeReason
     ) {
