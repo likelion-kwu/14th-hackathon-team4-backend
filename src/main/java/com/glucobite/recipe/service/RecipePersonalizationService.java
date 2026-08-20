@@ -21,8 +21,11 @@ import com.glucobite.recipe.dto.RecipeIngredientResponse;
 import com.glucobite.recipe.dto.RecipeStepResponse;
 import com.glucobite.recipe.dto.RecipeSubstitutionPreviewResponse;
 import com.glucobite.recipe.dto.RecipeSubstitutionRequest;
+import com.glucobite.recipe.dto.SavePersonalizedRecipeRequest;
+import com.glucobite.recipe.dto.SavedPersonalizedRecipeResponse;
 import com.glucobite.recipe.entity.Recipe;
 import com.glucobite.recipe.entity.RecipeIngredient;
+import com.glucobite.recipe.entity.RecipeStep;
 import com.glucobite.recipe.exception.IngredientNotFoundException;
 import com.glucobite.recipe.exception.InvalidRecipeSubstitutionException;
 import com.glucobite.recipe.exception.InvalidSubstituteIngredientException;
@@ -35,6 +38,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -222,6 +226,52 @@ public class RecipePersonalizationService {
                 calculation.nutritionChanges(),
                 calculation.changedIngredients(),
                 toPersonalizedIngredientResponses(calculation.finalIngredients())
+        );
+    }
+
+    @Transactional
+    public SavedPersonalizedRecipeResponse savePersonalizedRecipe(
+            Long userId,
+            Long recipeId,
+            SavePersonalizedRecipeRequest request
+    ) {
+        SubstitutionCalculation calculation = calculateSubstitutions(
+                userId,
+                recipeId,
+                new RecipeSubstitutionRequest(request.substitutions())
+        );
+        Recipe source = calculation.recipe();
+        String title = request.title() == null || request.title().isBlank()
+                ? source.getTitle()
+                : request.title();
+        Recipe saved = new Recipe(
+                source.getUser(),
+                title,
+                source.getDescription(),
+                source.getCookingTime(),
+                source.getImportType(),
+                calculation.personalizedNutrition().calories().setScale(2, RoundingMode.HALF_UP)
+        );
+        saved.complete();
+        recipeRepository.save(saved);
+
+        List<RecipeIngredient> savedIngredients = calculation.finalIngredients().stream()
+                .map(item -> new RecipeIngredient(saved, item.ingredient(), item.amount()))
+                .toList();
+        recipeIngredientRepository.saveAll(savedIngredients);
+
+        List<RecipeStep> savedSteps = recipeStepRepository
+                .findByRecipeIdOrderByStepOrderAsc(source.getId())
+                .stream()
+                .map(step -> new RecipeStep(saved, step.getStepOrder(), step.getDescription()))
+                .toList();
+        recipeStepRepository.saveAll(savedSteps);
+
+        return new SavedPersonalizedRecipeResponse(
+                saved.getId(),
+                source.getId(),
+                saved.getTitle(),
+                calculation.personalizedNutrition()
         );
     }
 

@@ -16,8 +16,10 @@ import com.glucobite.ingredient.repository.IngredientRepository;
 import com.glucobite.ingredient.repository.IngredientSubstituteRepository;
 import com.glucobite.recipe.entity.Recipe;
 import com.glucobite.recipe.entity.RecipeIngredient;
+import com.glucobite.recipe.entity.RecipeStep;
 import com.glucobite.recipe.repository.RecipeIngredientRepository;
 import com.glucobite.recipe.repository.RecipeRepository;
+import com.glucobite.recipe.repository.RecipeStepRepository;
 import com.glucobite.user.entity.User;
 import com.glucobite.user.repository.UserRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -29,6 +31,9 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -36,8 +41,10 @@ import java.util.List;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -52,8 +59,10 @@ class RecipePersonalizationIntegrationTest {
     @Autowired private IngredientSubstituteRepository ingredientSubstituteRepository;
     @Autowired private RecipeRepository recipeRepository;
     @Autowired private RecipeIngredientRepository recipeIngredientRepository;
+    @Autowired private RecipeStepRepository recipeStepRepository;
     @Autowired private JwtTokenService jwtTokenService;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private ObjectMapper objectMapper;
 
     private User owner;
     private User anotherUser;
@@ -90,6 +99,8 @@ class RecipePersonalizationIntegrationTest {
         recipe = recipeRepository.save(new Recipe(owner, "돼지고기 볶음", null, 20));
         recipeIngredientRepository.save(new RecipeIngredient(recipe, pork, BigDecimal.ONE));
         recipeIngredientRepository.save(new RecipeIngredient(recipe, rice, BigDecimal.ONE));
+        recipeStepRepository.save(new RecipeStep(recipe, 2, "볶는다."));
+        recipeStepRepository.save(new RecipeStep(recipe, 1, "재료를 손질한다."));
     }
 
     @AfterEach
@@ -202,6 +213,95 @@ class RecipePersonalizationIntegrationTest {
     }
 
     @Test
+    void savesAllSubstitutionsAsNewCompletedRecipeAndKeepsOriginal() throws Exception {
+        String body = saveSubstitutionBody(
+                "닭가슴살 콜리플라워 볶음",
+                substitutionItem(pork.getId(), chicken.getId(), "0.80"),
+                substitutionItem(rice.getId(), cauliflower.getId(), "1.00")
+        );
+
+        MvcResult result = mockMvc.perform(post("/api/recipes/{id}/substitutions", recipe.getId())
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andExpect(header().exists("Location"))
+                .andExpect(jsonPath("$.sourceRecipeId").value(recipe.getId()))
+                .andExpect(jsonPath("$.nutrition.calories").value(157.0000))
+                .andReturn();
+
+        JsonNode response = objectMapper.readTree(result.getResponse().getContentAsByteArray());
+        Long savedRecipeId = response.get("recipeId").asLong();
+        Recipe saved = recipeRepository.findById(savedRecipeId).orElseThrow();
+
+        assertThat(result.getResponse().getHeader("Location"))
+                .isEqualTo("/api/recipes/" + savedRecipeId);
+        assertThat(saved.getTitle()).isEqualTo("닭가슴살 콜리플라워 볶음");
+        assertThat(saved.isCompleted()).isTrue();
+        assertThat(saved.getTotalCalories()).isEqualByComparingTo("157.00");
+        assertThat(recipeIngredientRepository.findByRecipeId(savedRecipeId))
+                .extracting(item -> item.getIngredient().getId())
+                .containsExactlyInAnyOrder(chicken.getId(), cauliflower.getId());
+        assertThat(recipeStepRepository.findByRecipeIdOrderByStepOrderAsc(savedRecipeId))
+                .extracting(RecipeStep::getDescription)
+                .containsExactly("재료를 손질한다.", "볶는다.");
+        assertThat(recipeIngredientRepository.findByRecipeId(recipe.getId()))
+                .extracting(item -> item.getIngredient().getId())
+                .containsExactlyInAnyOrder(pork.getId(), rice.getId());
+    }
+
+    @Test
+    void rollsBackSaveWhenAnySubstitutionIsInvalid() throws Exception {
+        String body = saveSubstitutionBody(
+                "저장되면 안 되는 레시피",
+                substitutionItem(pork.getId(), chicken.getId(), "0.80"),
+                substitutionItem(rice.getId(), milk.getId(), "1.00")
+        );
+
+        mockMvc.perform(post("/api/recipes/{id}/substitutions", recipe.getId())
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_SUBSTITUTE_INGREDIENT"));
+
+        assertThat(recipeRepository.count()).isEqualTo(1);
+        assertThat(recipeIngredientRepository.findByRecipeId(recipe.getId()))
+                .extracting(item -> item.getIngredient().getId())
+                .containsExactlyInAnyOrder(pork.getId(), rice.getId());
+    }
+
+    @Test
+    void usesOriginalTitleWhenSaveTitleIsMissing() throws Exception {
+        String body = saveSubstitutionBody(
+                null,
+                substitutionItem(pork.getId(), chicken.getId(), "0.80")
+        );
+
+        mockMvc.perform(post("/api/recipes/{id}/substitutions", recipe.getId())
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.title").value(recipe.getTitle()));
+    }
+
+    @Test
+    void documentsBatchPreviewAndSaveEndpoints() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$.paths['/api/recipes/{recipeId}/substitutions/preview'].post.security[0].bearerAuth"
+                ).isArray())
+                .andExpect(jsonPath(
+                        "$.paths['/api/recipes/{recipeId}/substitutions'].post.security[0].bearerAuth"
+                ).isArray())
+                .andExpect(jsonPath(
+                        "$.paths['/api/recipes/{recipeId}/substitutions'].post.responses['201']"
+                ).exists());
+    }
+
+    @Test
     void hidesPersonalizationEndpointsFromNonOwner() throws Exception {
         String token = bearer(anotherUser);
         String body = substitutionBody(
@@ -224,6 +324,16 @@ class RecipePersonalizationIntegrationTest {
                         .header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RECIPE_NOT_FOUND"));
+
+        mockMvc.perform(post("/api/recipes/{id}/substitutions", recipe.getId())
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(saveSubstitutionBody(
+                                null,
+                                substitutionItem(pork.getId(), chicken.getId(), "0.80")
+                        )))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RECIPE_NOT_FOUND"));
     }
@@ -281,6 +391,16 @@ class RecipePersonalizationIntegrationTest {
                   "substitutions": [%s]
                 }
                 """.formatted(String.join(",", items));
+    }
+
+    private String saveSubstitutionBody(String title, String... items) {
+        String jsonTitle = title == null ? "null" : "\"" + title + "\"";
+        return """
+                {
+                  "title": %s,
+                  "substitutions": [%s]
+                }
+                """.formatted(jsonTitle, String.join(",", items));
     }
 
     private String substitutionItem(Long originalId, Long substituteId, String amount) {

@@ -10,6 +10,8 @@ import com.glucobite.recipe.dto.RecipeRecommendationResponse;
 import com.glucobite.recipe.dto.RecipeStepListResponse;
 import com.glucobite.recipe.dto.RecipeSubstitutionPreviewResponse;
 import com.glucobite.recipe.dto.RecipeSubstitutionRequest;
+import com.glucobite.recipe.dto.SavePersonalizedRecipeRequest;
+import com.glucobite.recipe.dto.SavedPersonalizedRecipeResponse;
 import com.glucobite.recipe.service.RecipeService;
 import com.glucobite.recipe.service.RecipePersonalizationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,6 +27,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -32,6 +35,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.net.URI;
 
 @RestController
 @RequestMapping("/api/recipes")
@@ -201,6 +206,33 @@ public class RecipeController {
             @Valid @RequestBody RecipeSubstitutionRequest request
     ) {
         return personalizationService.previewSubstitutions(parseUserId(jwt), recipeId, request);
+    }
+
+    @PostMapping("/{recipeId}/substitutions")
+    @Operation(summary = "개인화 레시피 최종 저장",
+            description = "전체 대체 항목을 반영한 새 레시피를 저장합니다. 원본 레시피는 변경하지 않습니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "저장 성공",
+                    content = @Content(schema = @Schema(implementation = SavedPersonalizedRecipeResponse.class))),
+            @ApiResponse(responseCode = "400", description = "중복, 충돌 또는 안전하지 않은 대체 재료",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "소유한 레시피 또는 건강 프로필이 없음",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
+    public ResponseEntity<SavedPersonalizedRecipeResponse> savePersonalizedRecipe(
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long recipeId,
+            @Valid @RequestBody SavePersonalizedRecipeRequest request
+    ) {
+        SavedPersonalizedRecipeResponse response = personalizationService.savePersonalizedRecipe(
+                parseUserId(jwt),
+                recipeId,
+                request
+        );
+        return ResponseEntity.created(URI.create("/api/recipes/" + response.recipeId()))
+                .body(response);
     }
 
     private Long parseUserId(Jwt jwt) {
