@@ -16,6 +16,6 @@ public record IngredientSubstitutionRequest(
         @NotNull @Positive Long substituteIngredientId,
 
         @Schema(description = "대체 재료 사용량", example = "150.0")
-        @NotNull @Positive @Digits(integer = 10, fraction = 2) BigDecimal amount
+        @NotNull @Positive @Digits(integer = 8, fraction = 2) BigDecimal amount
 ) {
 }

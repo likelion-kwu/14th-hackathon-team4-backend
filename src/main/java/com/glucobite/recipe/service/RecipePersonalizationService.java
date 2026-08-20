@@ -131,7 +131,7 @@ public class RecipePersonalizationService {
                 personalizedContributions.add(originalContribution);
             } else {
                 Ingredient substituteIngredient = substitute.getSubstitute();
-                BigDecimal newAmount = originalAmount.multiply(substitute.getRatio());
+                BigDecimal newAmount = recommendedAmount(originalAmount, substitute.getRatio());
                 IngredientNutrition substituteNutrition = nutritionMap.get(substituteIngredient.getId());
                 NutritionSummary substituteContribution = nutritionCalculator
                         .contribute(substituteNutrition, newAmount);
@@ -195,7 +195,7 @@ public class RecipePersonalizationService {
         List<IngredientAlternativeResponse> alternatives = new ArrayList<>();
         for (IngredientSubstitute substitute : substitutes) {
             Ingredient substituteIngredient = substitute.getSubstitute();
-            BigDecimal recommendedAmount = originalAmount.multiply(substitute.getRatio());
+            BigDecimal recommendedAmount = recommendedAmount(originalAmount, substitute.getRatio());
             IngredientNutrition substituteNutrition = substituteNutritions.get(substituteIngredient.getId());
             NutritionSummary substituteContribution = nutritionCalculator
                     .contribute(substituteNutrition, recommendedAmount);
@@ -449,6 +449,10 @@ public class RecipePersonalizationService {
                         nutrition -> nutrition.getIngredient().getId(),
                         nutrition -> nutrition
                 ));
+    }
+
+    private BigDecimal recommendedAmount(BigDecimal originalAmount, BigDecimal ratio) {
+        return originalAmount.multiply(ratio).setScale(2, RoundingMode.HALF_UP);
     }
 
     private record AppliedSubstitution(

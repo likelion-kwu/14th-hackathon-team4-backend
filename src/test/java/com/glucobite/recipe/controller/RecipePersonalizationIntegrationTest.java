@@ -130,6 +130,41 @@ class RecipePersonalizationIntegrationTest {
     }
 
     @Test
+    void roundedAlternativeAmountCanBeAppliedWithoutClientConversion() throws Exception {
+        Ingredient potato = saveIngredient("감자", "77.00", "17.00", "2.00");
+        Ingredient pumpkin = saveIngredient("단호박", "29.00", "7.00", "1.00");
+        ingredientSubstituteRepository.save(new IngredientSubstitute(
+                potato, pumpkin, new BigDecimal("0.3333"), "권장 사용량 반올림 테스트"
+        ));
+        recipeIngredientRepository.save(new RecipeIngredient(
+                recipe, potato, new BigDecimal("1.23")
+        ));
+
+        MvcResult alternativesResult = mockMvc.perform(get(
+                        "/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives",
+                        recipe.getId(), potato.getId()
+                ).header("Authorization", bearer(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.alternatives[0].recommendedAmount").value(0.41))
+                .andReturn();
+        JsonNode alternatives = objectMapper.readTree(
+                alternativesResult.getResponse().getContentAsByteArray()
+        );
+        String recommendedAmount = alternatives.get("alternatives").get(0)
+                .get("recommendedAmount").decimalValue().toPlainString();
+
+        mockMvc.perform(post("/api/recipes/{id}/substitutions/preview", recipe.getId())
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(substitutionBody(
+                                substitutionItem(potato.getId(), pumpkin.getId(), recommendedAmount)
+                        )))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.changedIngredients[0].substituteIngredient.amount")
+                        .value(0.41));
+    }
+
+    @Test
     void rejectsApplyingCandidateRestrictedByProfile() throws Exception {
         String body = substitutionBody(
                 substitutionItem(pork.getId(), milk.getId(), "1.00")
@@ -208,6 +243,20 @@ class RecipePersonalizationIntegrationTest {
                         .header("Authorization", bearer(owner))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"substitutions\":[]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void rejectsAmountLargerThanRecipeIngredientColumn() throws Exception {
+        String body = substitutionBody(
+                substitutionItem(pork.getId(), chicken.getId(), "999999999.00")
+        );
+
+        mockMvc.perform(post("/api/recipes/{id}/substitutions/preview", recipe.getId())
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
