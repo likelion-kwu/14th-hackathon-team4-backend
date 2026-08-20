@@ -334,4 +334,20 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.components.schemas.TodaySummaryResponse.properties.averageGlucose")
                         .exists());
     }
+
+    @Test
+    void documentsTrendRecommendationContract() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/recommendations/trends'].get.summary")
+                        .value("추세 기반 추천"))
+                .andExpect(jsonPath("$.paths['/api/recommendations/trends'].get.parameters[0].schema.default")
+                        .value(7))
+                .andExpect(jsonPath("$.paths['/api/recommendations/trends'].get.parameters[0].schema.minimum")
+                        .value(7))
+                .andExpect(jsonPath("$.paths['/api/recommendations/trends'].get.parameters[0].schema.maximum")
+                        .value(30))
+                .andExpect(jsonPath("$.components.schemas.TrendRecommendationResponse.properties.disclaimer")
+                        .exists());
+    }
 }
