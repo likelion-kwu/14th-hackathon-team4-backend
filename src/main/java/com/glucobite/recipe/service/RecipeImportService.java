@@ -40,6 +40,7 @@ public class RecipeImportService {
     private static final int MAX_STEPS = 100;
     private static final BigDecimal MAX_AMOUNT_GRAMS = new BigDecimal("100000.00");
     private static final BigDecimal MAX_NUTRITION_PER_GRAM = new BigDecimal("1000000.00");
+    private static final BigDecimal MAX_TOTAL_CALORIES = new BigDecimal("99999999.99");
     private static final int NUTRITION_PER_GRAM_SCALE = 6;
 
     private final RecipeTextAnalyzer analyzer;
@@ -111,6 +112,11 @@ public class RecipeImportService {
         NutritionSummary totalNutrition = nutritionCalculator.sum(resolvedIngredients.stream()
                 .map(item -> nutritionCalculator.contribute(item.nutrition(), item.amount()))
                 .toList());
+        requireNonNegativeWithin(
+                totalNutrition.calories(),
+                MAX_TOTAL_CALORIES,
+                "전체 칼로리"
+        );
         Recipe recipe = recipeRepository.save(new Recipe(
                 user,
                 analyzed.title().trim(),
@@ -246,9 +252,17 @@ public class RecipeImportService {
     }
 
     private void requireNonNegativeWithin(BigDecimal value, String field) {
+        requireNonNegativeWithin(value, MAX_NUTRITION_PER_GRAM, field);
+    }
+
+    private void requireNonNegativeWithin(
+            BigDecimal value,
+            BigDecimal maximum,
+            String field
+    ) {
         if (value == null
                 || value.signum() < 0
-                || value.compareTo(MAX_NUTRITION_PER_GRAM) > 0) {
+                || value.compareTo(maximum) > 0) {
             throw invalid(field + " 값이 올바르지 않습니다.");
         }
     }

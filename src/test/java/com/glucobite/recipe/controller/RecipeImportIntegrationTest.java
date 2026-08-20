@@ -171,6 +171,28 @@ class RecipeImportIntegrationTest {
     }
 
     @Test
+    void rejectsTotalCaloriesOutsideRecipeStorageRange() throws Exception {
+        given(recipeTextAnalyzer.analyze(any())).willReturn(new AnalyzedRecipe(
+                "범위 초과 레시피", null, 10,
+                List.of(ingredient(
+                        "고열량 재료", "100000", "1000000", "0", "0", "0", "0", "0", "0"
+                )),
+                List.of("재료를 조리한다.")
+        ));
+
+        mockMvc.perform(post("/api/recipes/import/text")
+                        .header("Authorization", bearer())
+                        .contentType("application/json")
+                        .content("{\"text\":\"범위 초과 레시피\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("INVALID_RECIPE_ANALYSIS"));
+
+        assertThat(recipeRepository.count()).isZero();
+        assertThat(ingredientRepository.count()).isZero();
+        assertThat(ingredientNutritionRepository.count()).isZero();
+    }
+
+    @Test
     void mergesDuplicateIngredientNamesBeforeSaving() throws Exception {
         given(recipeTextAnalyzer.analyze(any())).willReturn(new AnalyzedRecipe(
                 "두부 요리", null, 10,
