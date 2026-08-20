@@ -81,8 +81,24 @@ public class RecipeImportController {
     }
 
     @PostMapping("/youtube")
+    @Operation(
+            summary = "YouTube 레시피 분석 및 저장",
+            description = "YouTube 영상의 공개 자막을 분석해 completed=false인 BASE Recipe로 저장합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "기본 Recipe 저장 성공",
+                    content = @Content(schema = @Schema(implementation = ImportedRecipeResponse.class))),
+            @ApiResponse(responseCode = "400", description = "잘못되었거나 지원하지 않는 YouTube URL",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "422", description = "영상 또는 공개 자막을 사용할 수 없음",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "502", description = "YouTube 또는 OpenAI 호출 실패",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
     public ResponseEntity<ImportedRecipeResponse> importYouTube(
-            @AuthenticationPrincipal Jwt jwt,
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody YouTubeRecipeImportRequest request
     ) {
         YouTubeVideoReference reference = youTubeUrlParser.parse(request.url());
