@@ -123,7 +123,7 @@ jobs:
             docker compose up -d
             docker image prune -f
 
-      - name: Health check
+      - name: Health check and image verification
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -132,19 +132,55 @@ jobs:
           script: |
             cd ~/app
 
+            EXPECTED_IMAGE="${{ secrets.DOCKER_USERNAME }}/team4-backend:${{ github.sha }}"
+
             # 앱이 뜨고 DB 연결까지 끝날 때까지 최대 150초 기다린다.
+            healthy=0
             for i in $(seq 1 30); do
               if curl -fsS http://localhost/actuator/health > /dev/null; then
                 echo "health check ok (${i}번째 시도)"
-                docker compose ps
-                # 배포된 이미지가 이번 commit SHA와 일치하는지 확인한다.
-                grep '^DOCKER_IMAGE=' .env
-                exit 0
+                healthy=1
+                break
               fi
               sleep 5
             done
 
-            echo "health check 실패. 아래 로그를 확인하고 위 롤백 절차를 따른다."
+            if [ "$healthy" -ne 1 ]; then
+              echo "health check 실패. 아래 로그를 확인하고 위 롤백 절차를 따른다."
+              docker compose ps
+              docker compose logs --tail 200 app
+              exit 1
+            fi
+
+            # 헬스체크만으로는 pull/up이 실패해 이전 컨테이너가 그대로 응답하는 경우를
+            # 걸러내지 못한다. 실제로 떠 있는 team4-app이 이번 commit의 이미지인지
+            # image ID로 대조하고, 다르면 배포를 실패시킨다.
+            state=$(docker inspect --format '{{.State.Status}}' team4-app 2>/dev/null || echo missing)
+            if [ "$state" != "running" ]; then
+              echo "배포 검증 실패: team4-app 컨테이너가 running이 아니다 (${state})"
+              docker compose ps
+              docker compose logs --tail 200 app
+              exit 1
+            fi
+
+            expected_id=$(docker image inspect --format '{{.Id}}' "$EXPECTED_IMAGE" 2>/dev/null || true)
+            running_id=$(docker inspect --format '{{.Image}}' team4-app 2>/dev/null || true)
+
+            if [ -z "$expected_id" ]; then
+              echo "배포 검증 실패: 서버에 ${EXPECTED_IMAGE} 이미지가 없다. pull이 실패했는지 확인한다."
+              docker compose ps
+              exit 1
+            fi
+
+            if [ "$running_id" != "$expected_id" ]; then
+              echo "배포 검증 실패: 실행 중인 이미지가 이번 commit의 이미지와 다르다."
+              echo "  기대: ${EXPECTED_IMAGE} (${expected_id})"
+              echo "  실제: $(docker inspect --format '{{.Config.Image}}' team4-app) (${running_id})"
+              echo "위 롤백 절차를 따르거나 배포를 다시 실행한다."
+              docker compose ps
+              docker compose logs --tail 200 app
+              exit 1
+            fi
+
+            echo "배포 검증 ok: ${EXPECTED_IMAGE}"
             docker compose ps
-            docker compose logs --tail 200 app
-            exit 1

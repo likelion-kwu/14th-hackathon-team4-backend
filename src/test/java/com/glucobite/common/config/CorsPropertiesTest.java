@@ -29,6 +29,14 @@ class CorsPropertiesTest {
     }
 
     @Test
+    void bindsOriginWithExplicitPort() {
+        contextRunner
+                .withPropertyValues("app.cors.allowed-origins=http://localhost:3000")
+                .run(context -> assertThat(context.getBean(CorsProperties.class).allowedOrigins())
+                        .containsExactly("http://localhost:3000"));
+    }
+
+    @Test
     void failsToStartWhenOriginsAreMissing() {
         contextRunner
                 .run(context -> assertThat(context).hasFailed());
@@ -66,6 +74,55 @@ class CorsPropertiesTest {
     void failsToStartOnTrailingSlash() {
         contextRunner
                 .withPropertyValues("app.cors.allowed-origins=https://example.com/")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void failsToStartWhenOriginContainsPath() {
+        contextRunner
+                .withPropertyValues("app.cors.allowed-origins=https://example.com/path")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void failsToStartWhenOriginContainsQueryString() {
+        contextRunner
+                .withPropertyValues("app.cors.allowed-origins=http://example.com/path?q=123")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void failsToStartWhenOriginContainsFragment() {
+        contextRunner
+                .withPropertyValues("app.cors.allowed-origins=https://example.com#fragment")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void failsToStartWhenOriginContainsUserInfo() {
+        contextRunner
+                .withPropertyValues("app.cors.allowed-origins=https://user:pass@example.com")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void failsToStartOnNonHttpScheme() {
+        contextRunner
+                .withPropertyValues("app.cors.allowed-origins=ftp://example.com")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void failsToStartWhenHostIsMissing() {
+        contextRunner
+                .withPropertyValues("app.cors.allowed-origins=https://")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void failsToStartOnInvalidPort() {
+        contextRunner
+                .withPropertyValues("app.cors.allowed-origins=https://example.com:port")
                 .run(context -> assertThat(context).hasFailed());
     }
 
