@@ -5,6 +5,7 @@ import com.glucobite.auth.dto.SignupProfileRequest;
 import com.glucobite.auth.dto.SignupRequest;
 import com.glucobite.auth.dto.TokenResponse;
 import com.glucobite.auth.exception.DuplicateLoginIdException;
+import com.glucobite.auth.exception.AccountPersistenceException;
 import com.glucobite.auth.exception.InvalidAllergenException;
 import com.glucobite.auth.exception.InvalidCredentialsException;
 import com.glucobite.common.security.JwtTokenService;
@@ -32,6 +33,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenService jwtTokenService;
     private final RefreshTokenService refreshTokenService;
+    private final AuthConstraintViolationClassifier constraintViolationClassifier;
     private final String dummyPasswordHash;
 
     public AuthService(
@@ -40,7 +42,8 @@ public class AuthService {
             AllergenRepository allergenRepository,
             PasswordEncoder passwordEncoder,
             JwtTokenService jwtTokenService,
-            RefreshTokenService refreshTokenService
+            RefreshTokenService refreshTokenService,
+            AuthConstraintViolationClassifier constraintViolationClassifier
     ) {
         this.userRepository = userRepository;
         this.healthProfileRepository = healthProfileRepository;
@@ -48,6 +51,7 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenService = jwtTokenService;
         this.refreshTokenService = refreshTokenService;
+        this.constraintViolationClassifier = constraintViolationClassifier;
         this.dummyPasswordHash = passwordEncoder.encode("dummy-password-for-timing-protection");
     }
 
@@ -120,7 +124,10 @@ public class AuthService {
                     request.nickname()
             ));
         } catch (DataIntegrityViolationException exception) {
-            throw new DuplicateLoginIdException(exception);
+            if (constraintViolationClassifier.isDuplicateLoginId(exception)) {
+                throw new DuplicateLoginIdException(exception);
+            }
+            throw new AccountPersistenceException(exception);
         }
     }
 
