@@ -3,9 +3,13 @@ package com.glucobite.recipe.entity;
 import com.glucobite.common.entity.BaseTimeEntity;
 import com.glucobite.user.entity.User;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "recipes")
@@ -31,6 +35,15 @@ public class Recipe extends BaseTimeEntity {
     @Column(name = "cooking_time")
     private Integer cookingTime;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "import_type", length = 20)
+    private RecipeImportType importType;
+
+    @DecimalMin(value = "0.00")
+    @Digits(integer = 8, fraction = 2)
+    @Column(name = "total_calories", precision = 10, scale = 2)
+    private BigDecimal totalCalories;
+
     @Column(name = "is_completed", nullable = false)
     private boolean completed;
 
@@ -40,10 +53,23 @@ public class Recipe extends BaseTimeEntity {
             String description,
             Integer cookingTime
     ) {
+        this(user, title, description, cookingTime, null, null);
+    }
+
+    public Recipe(
+            User user,
+            String title,
+            String description,
+            Integer cookingTime,
+            RecipeImportType importType,
+            BigDecimal totalCalories
+    ) {
         this.user = user;
         this.title = title;
         this.description = description;
         this.cookingTime = cookingTime;
+        this.importType = importType;
+        this.totalCalories = totalCalories;
         this.completed = false;
     }
 
