@@ -1,0 +1,129 @@
+package com.glucobite.common.config;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.test.web.servlet.MockMvc;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.hasItem;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+class OpenApiConfigTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Test
+    void exposesOpenApiDocumentWithoutAuthentication() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.info.title").value("Glucobite API"))
+                .andExpect(jsonPath("$.info.version").value("v1"))
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.type").value("http"))
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.bearerFormat").value("JWT"));
+    }
+
+    @Test
+    void exposesSwaggerUiWithoutAuthentication() throws Exception {
+        mockMvc.perform(get("/swagger-ui/index.html"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void documentsSignupRequestAndResponses() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/auth/signup'].post.summary")
+                        .value("통합 회원가입"))
+                .andExpect(jsonPath("$.paths['/api/auth/signup'].post.responses['201']").exists())
+                .andExpect(jsonPath("$.paths['/api/auth/signup'].post.responses['400']").exists())
+                .andExpect(jsonPath("$.paths['/api/auth/signup'].post.responses['409']").exists())
+                .andExpect(jsonPath("$.components.schemas.SignupRequest.properties.loginId.example")
+                        .value("glucobite01"))
+                .andExpect(jsonPath("$.components.schemas.SignupRequest.properties.password.writeOnly")
+                        .value(true))
+                .andExpect(jsonPath("$.components.schemas.SignupProfileRequest.properties.sex.enum",
+                        containsInAnyOrder("MALE", "FEMALE")))
+                .andExpect(jsonPath("$.components.schemas.SignupProfileRequest.properties.sex.enum",
+                        not(hasItem("UNSPECIFIED"))));
+    }
+
+    @Test
+    void documentsLoginAndCommonResponseSchemas() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/auth/login'].post.summary").value("로그인"))
+                .andExpect(jsonPath("$.paths['/api/auth/login'].post.responses['200']").exists())
+                .andExpect(jsonPath("$.paths['/api/auth/login'].post.responses['400']").exists())
+                .andExpect(jsonPath("$.paths['/api/auth/login'].post.responses['401']").exists())
+                .andExpect(jsonPath("$.components.schemas.TokenResponse.properties.accessToken").exists())
+                .andExpect(jsonPath("$.components.schemas.TokenResponse.properties.tokenType.example")
+                        .value("Bearer"))
+                .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.fieldErrors")
+                        .exists());
+    }
+
+    @Test
+    void documentsPublicAllergenLookup() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/allergens'].get.summary")
+                        .value("알레르기 목록 조회"))
+                .andExpect(jsonPath("$.paths['/api/allergens'].get.parameters[0].name")
+                        .value("query"))
+                .andExpect(jsonPath("$.paths['/api/allergens'].get.parameters[0].required")
+                        .value(false))
+                .andExpect(jsonPath("$.paths['/api/allergens'].get.parameters[0].schema.maxLength")
+                        .value(100))
+                .andExpect(jsonPath("$.paths['/api/allergens'].get.responses['200'].content['*/*'].schema.items['$ref']")
+                        .value("#/components/schemas/AllergenResponse"))
+                .andExpect(jsonPath("$.paths['/api/allergens'].get.responses['400']").exists())
+                .andExpect(jsonPath("$.components.schemas.AllergenResponse.properties.allergenId.example")
+                        .value(2))
+                .andExpect(jsonPath("$.components.schemas.AllergenResponse.properties.name.example")
+                        .value("우유"));
+    }
+
+    @Test
+    void documentsAuthenticatedRecipeList() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.summary")
+                        .value("내 레시피 목록 조회"))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.security[0].bearerAuth").exists())
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.parameters[0].name")
+                        .value("completed"))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.parameters[1].name")
+                        .value("page"))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.parameters[1].schema.default")
+                        .value(0))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.parameters[1].schema.minimum")
+                        .value(0))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.parameters[2].name")
+                        .value("size"))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.parameters[2].schema.default")
+                        .value(20))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.parameters[2].schema.minimum")
+                        .value(1))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.parameters[2].schema.maximum")
+                        .value(100))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/RecipePageResponse"))
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.responses['400']").exists())
+                .andExpect(jsonPath("$.paths['/api/recipes'].get.responses['401']").exists())
+                .andExpect(jsonPath("$.components.schemas.RecipePageResponse.properties.content.items['$ref']")
+                        .value("#/components/schemas/RecipeSummaryResponse"))
+                .andExpect(jsonPath("$.components.schemas.RecipeSummaryResponse.properties.importType.enum",
+                        containsInAnyOrder("URL", "IMAGE", "TEXT")))
+                .andExpect(jsonPath("$.components.schemas.RecipeSummaryResponse.properties.totalCalories")
+                        .exists());
+    }
+}

@@ -6,44 +6,37 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+# 같은 branch의 배포가 겹치지 않게 한 번에 하나만 돌린다.
+# 배포 도중에 끊으면 서버가 어중간한 상태로 남으므로 취소하지 않고 큐에 쌓는다.
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/team4-backend
+  IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/team4-backend
 
 jobs:
-  # 아직 Spring Boot 코드가 올라오기 전에는 배포를 건너뛴다.
-  # (build.gradle이 생기는 순간부터 자동으로 배포가 돌아간다)
-  check:
-    runs-on: ubuntu-latest
-    outputs:
-      ready: ${{ steps.probe.outputs.ready }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: probe
-        run: |
-          if [ -f build.gradle ] || [ -f build.gradle.kts ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::build.gradle이 아직 없어 배포를 건너뜁니다. 코드가 올라오면 자동으로 실행됩니다."
-          fi
-
   build-and-push:
-    needs: check
-    if: needs.check.outputs.ready == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Run tests
         run: |
-          chmod +x ./gradlew || true
-          if [ -x ./gradlew ]; then ./gradlew test; else gradle test; fi
+          chmod +x ./gradlew
+          ./gradlew test
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -51,62 +44,143 @@ jobs:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
+      # 운영 배포는 SHA tag로만 고정한다. latest는 "지금 서버에 뭐가 떠 있는지"를
+      # 알 수 없게 만들어 롤백을 불가능하게 하므로 push하지 않는다.
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: |
-            ${{ env.IMAGE_NAME }}:latest
-            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+    # 운영 값(CORS origin 등)은 production Environment의 Secrets에서 주입된다.
+    environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # compose 파일과 nginx 설정을 서버로 보낸다.
       - name: Copy deploy files to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_KEY }}
           source: "docker-compose.yml,nginx/**"
           target: "~/app"
           overwrite: true
 
+      # ------------------------------------------------------------------
+      # 실패 시 복구 절차 (직전 SHA로 롤백)
+      #
+      #   1. 되돌릴 SHA를 고른다.
+      #        gh run list --workflow=CD --limit 10       # 성공한 직전 배포의 commit
+      #        docker images <도커허브아이디>/team4-backend  # 서버에 남아 있는 tag 확인
+      #   2. EC2에 접속해 .env의 이미지 tag만 그 SHA로 바꾼다.
+      #        cd ~/app
+      #        sed -i "s|team4-backend:.*|team4-backend:<직전-SHA>|" .env
+      #   3. 다시 띄우고 확인한다.
+      #        docker compose pull && docker compose up -d
+      #        curl -fsS http://localhost/actuator/health && docker compose ps
+      #
+      #   아래 image prune은 dangling(태그 없는) 이미지만 지우므로
+      #   직전 SHA 이미지는 서버에 그대로 남아 롤백에 쓸 수 있다.
+      # ------------------------------------------------------------------
       - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_KEY }}
           script: |
             set -e
             cd ~/app
 
             # 서버에 .env를 만든다. (레포에는 절대 커밋하지 않는다)
+            # heredoc 구분자를 따옴표로 감싸 서버 shell이 값 안의 $ 등을 건드리지 않게 한다.
             cat > .env <<'ENVEOF'
-            DOCKER_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/team4-backend:latest
+            DOCKER_IMAGE=${{ secrets.DOCKER_USERNAME }}/team4-backend:${{ github.sha }}
             MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
             MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
             MYSQL_USER=${{ secrets.MYSQL_USER }}
             MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
             JWT_SECRET=${{ secrets.JWT_SECRET }}
+            CORS_ALLOWED_ORIGINS=${{ secrets.CORS_ALLOWED_ORIGINS }}
             ENVEOF
             chmod 600 .env
 
-            echo "${{ secrets.DOCKERHUB_TOKEN }}" \
-              | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+            echo "${{ secrets.DOCKER_PASSWORD }}" \
+              | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
             docker compose pull
             docker compose up -d
             docker image prune -f
+
+      - name: Health check and image verification
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            cd ~/app
+
+            EXPECTED_IMAGE="${{ secrets.DOCKER_USERNAME }}/team4-backend:${{ github.sha }}"
+
+            # 앱이 뜨고 DB 연결까지 끝날 때까지 최대 150초 기다린다.
+            healthy=0
+            for i in $(seq 1 30); do
+              if curl -fsS http://localhost/actuator/health > /dev/null; then
+                echo "health check ok (${i}번째 시도)"
+                healthy=1
+                break
+              fi
+              sleep 5
+            done
+
+            if [ "$healthy" -ne 1 ]; then
+              echo "health check 실패. 아래 로그를 확인하고 위 롤백 절차를 따른다."
+              docker compose ps
+              docker compose logs --tail 200 app
+              exit 1
+            fi
+
+            # 헬스체크만으로는 pull/up이 실패해 이전 컨테이너가 그대로 응답하는 경우를
+            # 걸러내지 못한다. 실제로 떠 있는 team4-app이 이번 commit의 이미지인지
+            # image ID로 대조하고, 다르면 배포를 실패시킨다.
+            state=$(docker inspect --format '{{.State.Status}}' team4-app 2>/dev/null || echo missing)
+            if [ "$state" != "running" ]; then
+              echo "배포 검증 실패: team4-app 컨테이너가 running이 아니다 (${state})"
+              docker compose ps
+              docker compose logs --tail 200 app
+              exit 1
+            fi
+
+            expected_id=$(docker image inspect --format '{{.Id}}' "$EXPECTED_IMAGE" 2>/dev/null || true)
+            running_id=$(docker inspect --format '{{.Image}}' team4-app 2>/dev/null || true)
+
+            if [ -z "$expected_id" ]; then
+              echo "배포 검증 실패: 서버에 ${EXPECTED_IMAGE} 이미지가 없다. pull이 실패했는지 확인한다."
+              docker compose ps
+              exit 1
+            fi
+
+            if [ "$running_id" != "$expected_id" ]; then
+              echo "배포 검증 실패: 실행 중인 이미지가 이번 commit의 이미지와 다르다."
+              echo "  기대: ${EXPECTED_IMAGE} (${expected_id})"
+              echo "  실제: $(docker inspect --format '{{.Config.Image}}' team4-app) (${running_id})"
+              echo "위 롤백 절차를 따르거나 배포를 다시 실행한다."
+              docker compose ps
+              docker compose logs --tail 200 app
+              exit 1
+            fi
+
+            echo "배포 검증 ok: ${EXPECTED_IMAGE}"
             docker compose ps
