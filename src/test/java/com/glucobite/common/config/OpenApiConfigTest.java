@@ -50,6 +50,10 @@ class OpenApiConfigTest {
                         .value("glucobite01"))
                 .andExpect(jsonPath("$.components.schemas.SignupRequest.properties.password.writeOnly")
                         .value(true))
+                .andExpect(jsonPath("$.components.schemas.SignupRequest.properties.password.example")
+                        .value("1234"))
+                .andExpect(jsonPath("$.components.schemas.SignupRequest.properties.password.pattern")
+                        .value("[0-9]{4}"))
                 .andExpect(jsonPath("$.components.schemas.SignupProfileRequest.properties.sex.enum",
                         containsInAnyOrder("MALE", "FEMALE")))
                 .andExpect(jsonPath("$.components.schemas.SignupProfileRequest.properties.sex.enum",
@@ -64,6 +68,10 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.paths['/api/auth/login'].post.responses['200']").exists())
                 .andExpect(jsonPath("$.paths['/api/auth/login'].post.responses['400']").exists())
                 .andExpect(jsonPath("$.paths['/api/auth/login'].post.responses['401']").exists())
+                .andExpect(jsonPath("$.components.schemas.LoginRequest.properties.password.example")
+                        .value("1234"))
+                .andExpect(jsonPath("$.components.schemas.LoginRequest.properties.password.pattern")
+                        .value("[0-9]{4}"))
                 .andExpect(jsonPath("$.components.schemas.TokenResponse.properties.accessToken").exists())
                 .andExpect(jsonPath("$.components.schemas.TokenResponse.properties.tokenType.example")
                         .value("Bearer"))
