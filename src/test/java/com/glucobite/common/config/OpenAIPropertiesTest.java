@@ -20,19 +20,19 @@ class OpenAIPropertiesTest {
         contextRunner
                 .withPropertyValues(
                         "app.openai.api-key=test-key",
-                        "app.openai.model=gpt-5.4-mini"
+                        "app.openai.model=gpt-5.6-luna"
                 )
                 .run(context -> {
                     OpenAIProperties properties = context.getBean(OpenAIProperties.class);
                     assertThat(properties.apiKey()).isEqualTo("test-key");
-                    assertThat(properties.model()).isEqualTo("gpt-5.4-mini");
+                    assertThat(properties.model()).isEqualTo("gpt-5.6-luna");
                 });
     }
 
     @Test
     void failsToStartWhenApiKeyIsMissing() {
         contextRunner
-                .withPropertyValues("app.openai.model=gpt-5.4-mini")
+                .withPropertyValues("app.openai.model=gpt-5.6-luna")
                 .run(context -> assertThat(context).hasFailed());
     }
 

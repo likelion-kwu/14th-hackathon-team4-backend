@@ -15,7 +15,7 @@ spring:
 app:
   openai:
     api-key: test-openai-api-key
-    model: gpt-5.4-mini
+    model: gpt-5.6-luna
   jwt:
     secret: test-secret-key-that-is-at-least-thirty-two-bytes-long
     expiration: 1h
