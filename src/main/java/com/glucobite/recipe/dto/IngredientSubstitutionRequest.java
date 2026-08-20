@@ -2,6 +2,7 @@ package com.glucobite.recipe.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
@@ -13,9 +14,17 @@ public record IngredientSubstitutionRequest(
         @NotNull @Positive Long originalIngredientId,
 
         @Schema(description = "대체할 등록 재료 ID", example = "6")
-        @NotNull @Positive Long substituteIngredientId,
+        @Positive Long substituteIngredientId,
+
+        @Schema(description = "POST alternatives로 생성한 AI 후보 ID", example = "12")
+        @Positive Long suggestionId,
 
         @Schema(description = "대체 재료 사용량", example = "150.0")
         @NotNull @Positive @Digits(integer = 8, fraction = 2) BigDecimal amount
 ) {
+    @AssertTrue(message = "substituteIngredientId와 suggestionId 중 하나만 입력해야 합니다.")
+    @Schema(hidden = true)
+    public boolean isSelectionValid() {
+        return (substituteIngredientId == null) != (suggestionId == null);
+    }
 }

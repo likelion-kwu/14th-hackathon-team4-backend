@@ -266,6 +266,116 @@ class RecipeSubstitutionSuggestionIntegrationTest {
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
+    @Test
+    void previewsAndSavesSelectedAiSuggestionUsingItsNutritionSnapshot() throws Exception {
+        when(suggestionGenerator.generate(any())).thenReturn(
+                generated("두부", "0.760000", "0.081000")
+        );
+        String generatedBody = mockMvc.perform(post(
+                                "/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives",
+                                recipe.getId(),
+                                pork.getId()
+                        )
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{" + "\"userInput\":\"두부로 대체\"" + "}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        Long suggestionId = objectMapper.readTree(generatedBody)
+                .get("suggestions").get(0).get("suggestionId").asLong();
+        String substitutions = """
+                {
+                  "substitutions": [
+                    {
+                      "originalIngredientId": %d,
+                      "suggestionId": %d,
+                      "amount": 150.00
+                    }
+                  ]
+                }
+                """.formatted(pork.getId(), suggestionId);
+
+        mockMvc.perform(post("/api/recipes/{id}/substitutions/preview", recipe.getId())
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(substitutions))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.changedIngredients[0].substituteIngredient.title")
+                        .value("두부"))
+                .andExpect(jsonPath("$.changedIngredients[0].substituteIngredient.amount")
+                        .value(150.00))
+                .andExpect(jsonPath("$.personalizedNutrition.calories").value(114.000000));
+
+        String saveBody = """
+                {
+                  "title": "두부 볶음",
+                  "substitutions": [
+                    {
+                      "originalIngredientId": %d,
+                      "suggestionId": %d,
+                      "amount": 150.00
+                    }
+                  ]
+                }
+                """.formatted(pork.getId(), suggestionId);
+        var saveResult = mockMvc.perform(post("/api/recipes/{id}/substitutions", recipe.getId())
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(saveBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.title").value("두부 볶음"))
+                .andReturn();
+
+        Long savedRecipeId = objectMapper.readTree(
+                saveResult.getResponse().getContentAsByteArray()
+        ).get("recipeId").asLong();
+        RecipeIngredient savedIngredient = recipeIngredientRepository
+                .findByRecipeId(savedRecipeId).getFirst();
+        assertThat(savedIngredient.getIngredient().getTitle()).isEqualTo("두부");
+        assertThat(savedIngredient.getCaloriesPerGram()).isEqualByComparingTo("0.760000");
+        assertThat(ingredientNutritionRepository
+                .findByIngredientId(savedIngredient.getIngredient().getId())).isEmpty();
+    }
+
+    @Test
+    void requiresExactlyOneRegisteredOrAiSelection() throws Exception {
+        String both = """
+                {
+                  "substitutions": [
+                    {
+                      "originalIngredientId": %d,
+                      "substituteIngredientId": %d,
+                      "suggestionId": 999,
+                      "amount": 80.00
+                    }
+                  ]
+                }
+                """.formatted(pork.getId(), chicken.getId());
+        String neither = """
+                {
+                  "substitutions": [
+                    {
+                      "originalIngredientId": %d,
+                      "amount": 80.00
+                    }
+                  ]
+                }
+                """.formatted(pork.getId());
+
+        mockMvc.perform(post("/api/recipes/{id}/substitutions/preview", recipe.getId())
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(both))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        mockMvc.perform(post("/api/recipes/{id}/substitutions/preview", recipe.getId())
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(neither))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
     private GeneratedSubstitutionSuggestions generated(
             String title,
             String caloriesPerGram,
