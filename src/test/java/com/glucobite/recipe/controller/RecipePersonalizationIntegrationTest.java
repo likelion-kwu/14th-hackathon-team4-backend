@@ -213,6 +213,26 @@ class RecipePersonalizationIntegrationTest {
     }
 
     @Test
+    void rejectsNullSubstitutionItemInPreview() throws Exception {
+        mockMvc.perform(post("/api/recipes/{id}/substitutions/preview", recipe.getId())
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"substitutions\":[null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void rejectsNullSubstitutionItemWhenSaving() throws Exception {
+        mockMvc.perform(post("/api/recipes/{id}/substitutions", recipe.getId())
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":null,\"substitutions\":[null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
     void savesAllSubstitutionsAsNewCompletedRecipeAndKeepsOriginal() throws Exception {
         String body = saveSubstitutionBody(
                 "닭가슴살 콜리플라워 볶음",
