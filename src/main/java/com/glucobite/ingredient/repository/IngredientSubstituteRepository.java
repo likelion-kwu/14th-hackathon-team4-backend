@@ -8,12 +8,11 @@ import java.util.Optional;
 
 public interface IngredientSubstituteRepository extends JpaRepository<IngredientSubstitute, Long> {
 
-    List<IngredientSubstitute> findByIngredientId(Long ingredientId);
+    List<IngredientSubstitute> findByIngredientIdOrderByIdAsc(Long ingredientId);
 
     Optional<IngredientSubstitute> findByIngredientIdAndSubstituteId(
             Long ingredientId,
             Long substituteId
     );
 
-    Optional<IngredientSubstitute> findFirstByIngredientIdOrderByIdAsc(Long ingredientId);
 }
