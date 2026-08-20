@@ -32,4 +32,3 @@ public record IngredientAlternativeSuggestionResponse(
         List<IngredientAlternativeSourceResponse> sources
 ) {
 }
-

@@ -180,4 +180,3 @@ public class RecipeSubstitutionSuggestion extends BaseTimeEntity {
         );
     }
 }
-

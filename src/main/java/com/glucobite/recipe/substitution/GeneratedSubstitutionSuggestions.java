@@ -22,4 +22,3 @@ public record GeneratedSubstitutionSuggestions(
     public record Source(String title, String url) {
     }
 }
-

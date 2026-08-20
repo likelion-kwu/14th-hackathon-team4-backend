@@ -66,4 +66,3 @@ public class RecipeSubstitutionSuggestionSource {
         this.url = url;
     }
 }
-

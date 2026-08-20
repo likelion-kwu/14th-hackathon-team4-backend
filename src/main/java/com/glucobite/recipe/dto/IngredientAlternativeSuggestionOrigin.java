@@ -7,4 +7,3 @@ public enum IngredientAlternativeSuggestionOrigin {
     REGISTERED,
     AI_WEB_SEARCH
 }
-

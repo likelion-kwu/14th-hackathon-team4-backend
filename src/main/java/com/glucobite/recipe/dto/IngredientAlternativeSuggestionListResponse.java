@@ -11,4 +11,3 @@ public record IngredientAlternativeSuggestionListResponse(
         List<IngredientAlternativeSuggestionResponse> suggestions
 ) {
 }
-

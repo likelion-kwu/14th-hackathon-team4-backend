@@ -599,4 +599,3 @@ public class RecipeSubstitutionSuggestionService {
     ) {
     }
 }
-

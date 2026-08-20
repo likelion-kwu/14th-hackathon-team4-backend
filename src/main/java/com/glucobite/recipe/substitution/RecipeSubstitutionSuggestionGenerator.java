@@ -4,4 +4,3 @@ public interface RecipeSubstitutionSuggestionGenerator {
 
     GeneratedSubstitutionSuggestions generate(SubstitutionSuggestionContext context);
 }
-
