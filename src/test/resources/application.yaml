@@ -19,5 +19,12 @@ app:
   jwt:
     secret: test-secret-key-that-is-at-least-thirty-two-bytes-long
     expiration: 1h
+  auth:
+    refresh-token:
+      expiration: 30d
+      cookie-name: refresh_token
+      cookie-secure: true
+      cookie-same-site: None
+      cookie-domain:
   cors:
     allowed-origins: https://allowed.example.com,http://localhost:5173
