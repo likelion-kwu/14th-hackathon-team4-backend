@@ -50,7 +50,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Service
@@ -73,6 +78,8 @@ public class RecipeSubstitutionSuggestionService {
     private final DietaryRestrictionPolicy dietaryRestrictionPolicy;
     private final RecipeSubstitutionSuggestionGenerator generator;
     private final TransactionTemplate transactionTemplate;
+    private final ConcurrentMap<String, CompletableFuture<IngredientAlternativeSuggestionListResponse>>
+            inFlightRequests = new ConcurrentHashMap<>();
 
     public RecipeSubstitutionSuggestionService(
             RecipeRepository recipeRepository,
@@ -112,6 +119,25 @@ public class RecipeSubstitutionSuggestionService {
     ) {
         String userInput = request.userInput().trim().replaceAll("\\s+", " ");
         String requestKey = requestKey(userInput, request.excludeSuggestionIds());
+        String inFlightKey = userId + ":" + recipeId + ":" + ingredientId + ":" + requestKey;
+        return singleFlight(inFlightKey, () -> generateOnce(
+                userId,
+                recipeId,
+                ingredientId,
+                request,
+                userInput,
+                requestKey
+        ));
+    }
+
+    private IngredientAlternativeSuggestionListResponse generateOnce(
+            Long userId,
+            Long recipeId,
+            Long ingredientId,
+            GenerateIngredientAlternativesRequest request,
+            String userInput,
+            String requestKey
+    ) {
         LoadedContext loaded = transactionTemplate.execute(status -> loadContext(
                 userId,
                 recipeId,
@@ -156,6 +182,36 @@ public class RecipeSubstitutionSuggestionService {
                 return cached;
             }
             throw exception;
+        }
+    }
+
+    private IngredientAlternativeSuggestionListResponse singleFlight(
+            String key,
+            Supplier<IngredientAlternativeSuggestionListResponse> supplier
+    ) {
+        CompletableFuture<IngredientAlternativeSuggestionListResponse> pending =
+                new CompletableFuture<>();
+        CompletableFuture<IngredientAlternativeSuggestionListResponse> existing =
+                inFlightRequests.putIfAbsent(key, pending);
+        if (existing != null) {
+            try {
+                return existing.join();
+            } catch (CompletionException exception) {
+                if (exception.getCause() instanceof RuntimeException runtimeException) {
+                    throw runtimeException;
+                }
+                throw exception;
+            }
+        }
+        try {
+            IngredientAlternativeSuggestionListResponse response = supplier.get();
+            pending.complete(response);
+            return response;
+        } catch (RuntimeException | Error exception) {
+            pending.completeExceptionally(exception);
+            throw exception;
+        } finally {
+            inFlightRequests.remove(key, pending);
         }
     }
 

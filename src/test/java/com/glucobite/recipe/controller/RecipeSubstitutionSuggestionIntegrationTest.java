@@ -43,6 +43,9 @@ import tools.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -421,6 +424,39 @@ class RecipeSubstitutionSuggestionIntegrationTest {
         verify(suggestionGenerator, times(2)).generate(any());
     }
 
+    @Test
+    void coalescesConcurrentIdenticalRequestsIntoOneOpenAICall() throws Exception {
+        when(suggestionGenerator.generate(any())).thenAnswer(invocation -> {
+            Thread.sleep(200);
+            return generated("두부", "0.760000", "0.081000");
+        });
+        CountDownLatch start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                start.await();
+                return requestSuggestions("동시에 두부 추천");
+            });
+            var second = executor.submit(() -> {
+                start.await();
+                return requestSuggestions("동시에 두부 추천");
+            });
+            start.countDown();
+
+            JsonNode firstResponse = objectMapper.readTree(
+                    first.get(10, TimeUnit.SECONDS)
+            );
+            JsonNode secondResponse = objectMapper.readTree(
+                    second.get(10, TimeUnit.SECONDS)
+            );
+            assertThat(firstResponse.get("suggestions").get(0).get("suggestionId").asLong())
+                    .isEqualTo(secondResponse.get("suggestions")
+                            .get(0).get("suggestionId").asLong());
+        }
+
+        verify(suggestionGenerator, times(1)).generate(any());
+        assertThat(suggestionRepository.count()).isEqualTo(1);
+    }
+
     private GeneratedSubstitutionSuggestions generated(
             String title,
             String caloriesPerGram,
@@ -448,6 +484,19 @@ class RecipeSubstitutionSuggestionIntegrationTest {
                         "https://example.com/tofu"
                 ))
         );
+    }
+
+    private String requestSuggestions(String userInput) throws Exception {
+        return mockMvc.perform(post(
+                                "/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives",
+                                recipe.getId(),
+                                pork.getId()
+                        )
+                        .header("Authorization", bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userInput\":\"" + userInput + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
     }
 
     private Ingredient saveIngredient(String title, String calories, String carb, String protein) {
