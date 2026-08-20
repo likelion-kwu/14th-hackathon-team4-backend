@@ -6,8 +6,10 @@ import com.glucobite.auth.exception.InvalidCredentialsException;
 import com.glucobite.health.exception.HealthProfileNotFoundException;
 import com.glucobite.recipe.exception.IngredientNotFoundException;
 import com.glucobite.recipe.exception.InvalidRecipeSubstitutionException;
+import com.glucobite.recipe.exception.InvalidRecipeAnalysisException;
 import com.glucobite.recipe.exception.InvalidSubstituteIngredientException;
 import com.glucobite.recipe.exception.RecipeIngredientNotFoundException;
+import com.glucobite.recipe.exception.RecipeImportGenerationException;
 import com.glucobite.recipe.exception.RecipeNotFoundException;
 import com.glucobite.recipe.exception.RecipeNotPersonalizableException;
 import com.glucobite.recipe.exception.RecipePersonalizationGenerationException;
@@ -137,6 +139,26 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ApiErrorResponse.of(
                 "RECIPE_PERSONALIZATION_GENERATION_FAILED",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(InvalidRecipeAnalysisException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidRecipeAnalysis(
+            InvalidRecipeAnalysisException exception
+    ) {
+        return ResponseEntity.unprocessableEntity().body(ApiErrorResponse.of(
+                "INVALID_RECIPE_ANALYSIS",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(RecipeImportGenerationException.class)
+    public ResponseEntity<ApiErrorResponse> handleRecipeImportGeneration(
+            RecipeImportGenerationException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ApiErrorResponse.of(
+                "RECIPE_IMPORT_GENERATION_FAILED",
                 exception.getMessage()
         ));
     }

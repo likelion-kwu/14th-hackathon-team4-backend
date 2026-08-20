@@ -9,7 +9,7 @@ import java.util.Collection;
 
 /**
  * amount 값을 계수로 그대로 사용해 (nutrition × amount) 합산으로 총 영양을 계산한다.
- * INGREDIENT_NUTRITIONS의 값을 1인분·1단위 기준으로 간주한다.
+ * INGREDIENT_NUTRITIONS는 재료 1g 기준 영양값, amount는 g 단위로 간주한다.
  */
 @Component
 public class RecipeNutritionCalculator {
