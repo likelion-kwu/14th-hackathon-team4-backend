@@ -22,6 +22,7 @@ import com.glucobite.recipe.dto.SavedPersonalizedRecipeResponse;
 import com.glucobite.recipe.entity.Recipe;
 import com.glucobite.recipe.entity.RecipeIngredient;
 import com.glucobite.recipe.entity.RecipeStep;
+import com.glucobite.recipe.entity.RecipeSubstitutionSuggestion;
 import com.glucobite.recipe.exception.IngredientNotFoundException;
 import com.glucobite.recipe.exception.InvalidRecipeSubstitutionException;
 import com.glucobite.recipe.exception.InvalidSubstituteIngredientException;
@@ -30,6 +31,7 @@ import com.glucobite.recipe.exception.RecipeNotFoundException;
 import com.glucobite.recipe.repository.RecipeIngredientRepository;
 import com.glucobite.recipe.repository.RecipeRepository;
 import com.glucobite.recipe.repository.RecipeStepRepository;
+import com.glucobite.recipe.repository.RecipeSubstitutionSuggestionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,6 +59,7 @@ public class RecipePersonalizationService {
     private final IngredientNutritionRepository ingredientNutritionRepository;
     private final IngredientSubstituteRepository ingredientSubstituteRepository;
     private final HealthProfileRepository healthProfileRepository;
+    private final RecipeSubstitutionSuggestionRepository suggestionRepository;
     private final RecipeNutritionCalculator nutritionCalculator;
     private final DietaryRestrictionPolicy dietaryRestrictionPolicy;
 
@@ -67,6 +70,7 @@ public class RecipePersonalizationService {
             IngredientNutritionRepository ingredientNutritionRepository,
             IngredientSubstituteRepository ingredientSubstituteRepository,
             HealthProfileRepository healthProfileRepository,
+            RecipeSubstitutionSuggestionRepository suggestionRepository,
             RecipeNutritionCalculator nutritionCalculator,
             DietaryRestrictionPolicy dietaryRestrictionPolicy
     ) {
@@ -76,6 +80,7 @@ public class RecipePersonalizationService {
         this.ingredientNutritionRepository = ingredientNutritionRepository;
         this.ingredientSubstituteRepository = ingredientSubstituteRepository;
         this.healthProfileRepository = healthProfileRepository;
+        this.suggestionRepository = suggestionRepository;
         this.nutritionCalculator = nutritionCalculator;
         this.dietaryRestrictionPolicy = dietaryRestrictionPolicy;
     }
@@ -226,18 +231,15 @@ public class RecipePersonalizationService {
                         "동일한 원본 재료를 두 번 이상 대체할 수 없습니다."
                 );
             }
-            IngredientSubstitute registered = ingredientSubstituteRepository
-                    .findByIngredientIdAndSubstituteId(
-                            item.originalIngredientId(),
-                            item.substituteIngredientId()
-                    )
-                    .orElseThrow(InvalidSubstituteIngredientException::new);
-            if (dietaryRestrictionPolicy.isRestricted(registered.getSubstitute(), restrictedTerms)) {
+            AppliedSubstitution applied = item.suggestionId() == null
+                    ? registeredSubstitution(item)
+                    : generatedSubstitution(userId, recipeId, item);
+            if (dietaryRestrictionPolicy.isRestricted(applied.substitute(), restrictedTerms)) {
                 throw new InvalidSubstituteIngredientException();
             }
             substitutionsByOriginalId.put(
                     item.originalIngredientId(),
-                    new AppliedSubstitution(registered, item.amount())
+                    applied
             );
         }
 
@@ -245,7 +247,7 @@ public class RecipePersonalizationService {
                 .map(ingredient -> ingredient.getIngredient().getId())
                 .collect(Collectors.toSet());
         substitutionsByOriginalId.values().stream()
-                .map(applied -> applied.registered().getSubstitute().getId())
+                .map(applied -> applied.substitute().getId())
                 .forEach(nutritionIds::add);
         Map<Long, IngredientNutrition> nutritionMap = loadNutritionMap(nutritionIds);
 
@@ -270,11 +272,13 @@ public class RecipePersonalizationService {
             AppliedSubstitution applied = substitutionsByOriginalId.get(originalIngredient.getId());
             Ingredient finalIngredient = applied == null
                     ? originalIngredient
-                    : applied.registered().getSubstitute();
+                    : applied.substitute();
             BigDecimal finalAmount = applied == null ? original.getAmount() : applied.amount();
             NutritionSummary finalNutrition = applied == null
                     ? originalPerGram
-                    : nutritionCalculator.toSummary(nutritionMap.get(finalIngredient.getId()));
+                    : applied.nutritionPerGram() == null
+                            ? nutritionCalculator.toSummary(nutritionMap.get(finalIngredient.getId()))
+                            : applied.nutritionPerGram();
             if (!finalIngredientIds.add(finalIngredient.getId())) {
                 throw new InvalidRecipeSubstitutionException(
                         "대체 결과에 동일한 재료가 중복될 수 없습니다."
@@ -283,7 +287,7 @@ public class RecipePersonalizationService {
 
             String reason = null;
             if (applied != null) {
-                reason = Optional.ofNullable(applied.registered().getReason())
+                reason = Optional.ofNullable(applied.reason())
                         .orElse(FALLBACK_MANUAL_CHANGE_REASON);
                 changedIngredients.add(new ChangedIngredientResponse(
                         new RecipeIngredientResponse(
@@ -377,9 +381,47 @@ public class RecipePersonalizationService {
         );
     }
 
+    private AppliedSubstitution registeredSubstitution(IngredientSubstitutionRequest item) {
+        IngredientSubstitute registered = ingredientSubstituteRepository
+                .findByIngredientIdAndSubstituteId(
+                        item.originalIngredientId(),
+                        item.substituteIngredientId()
+                )
+                .orElseThrow(InvalidSubstituteIngredientException::new);
+        return new AppliedSubstitution(
+                registered.getSubstitute(),
+                item.amount(),
+                null,
+                registered.getReason()
+        );
+    }
+
+    private AppliedSubstitution generatedSubstitution(
+            Long userId,
+            Long recipeId,
+            IngredientSubstitutionRequest item
+    ) {
+        RecipeSubstitutionSuggestion suggestion = suggestionRepository
+                .findByIdAndUserIdAndRecipeIdAndOriginalIngredientId(
+                        item.suggestionId(),
+                        userId,
+                        recipeId,
+                        item.originalIngredientId()
+                )
+                .orElseThrow(InvalidSubstituteIngredientException::new);
+        return new AppliedSubstitution(
+                suggestion.getSubstituteIngredient(),
+                item.amount(),
+                suggestion.nutritionPerGram(),
+                suggestion.getReason()
+        );
+    }
+
     private record AppliedSubstitution(
-            IngredientSubstitute registered,
-            BigDecimal amount
+            Ingredient substitute,
+            BigDecimal amount,
+            NutritionSummary nutritionPerGram,
+            String reason
     ) {
     }
 

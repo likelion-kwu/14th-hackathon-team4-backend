@@ -258,4 +258,36 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.components.schemas.ImportedRecipeResponse.properties.imageUrl")
                         .exists());
     }
+
+    @Test
+    void documentsUserInputIngredientAlternativeContract() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives'].post.summary")
+                        .value("사용자 입력 기반 대체 재료 후보 생성"))
+                .andExpect(jsonPath("$.paths['/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives'].post.security[0].bearerAuth")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives'].post.requestBody.content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/GenerateIngredientAlternativesRequest"))
+                .andExpect(jsonPath("$.paths['/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives'].post.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/IngredientAlternativeSuggestionListResponse"))
+                .andExpect(jsonPath("$.paths['/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives'].post.responses['400']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives'].post.responses['401']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives'].post.responses['404']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives'].post.responses['502']")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.GenerateIngredientAlternativesRequest.properties.userInput.maxLength")
+                        .value(300))
+                .andExpect(jsonPath("$.components.schemas.GenerateIngredientAlternativesRequest.properties.excludeSuggestionIds.maxItems")
+                        .value(10))
+                .andExpect(jsonPath("$.components.schemas.IngredientAlternativeSuggestionResponse.properties.origin.enum",
+                        containsInAnyOrder("REGISTERED", "AI_WEB_SEARCH")))
+                .andExpect(jsonPath("$.components.schemas.IngredientAlternativeSourceResponse.properties.url")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.IngredientSubstitutionRequest.properties.suggestionId")
+                        .exists());
+    }
 }
