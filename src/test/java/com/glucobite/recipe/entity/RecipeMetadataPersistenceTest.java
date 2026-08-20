@@ -85,6 +85,32 @@ class RecipeMetadataPersistenceTest {
     }
 
     @Test
+    void persistsExternalRecipeSourceMetadata() {
+        User user = persistUser("source-metadata-user");
+        Recipe recipe = new Recipe(
+                user,
+                "영상 레시피",
+                null,
+                20,
+                RecipeImportType.URL,
+                new BigDecimal("400.00")
+        );
+        recipe.attachSourceMetadata(
+                "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                "dQw4w9WgXcQ",
+                "https://i.ytimg.com/test.jpg"
+        );
+        Recipe saved = entityManager.persistAndFlush(recipe);
+        entityManager.clear();
+
+        Recipe reloaded = entityManager.find(Recipe.class, saved.getId());
+        assertThat(reloaded.getSourceUrl())
+                .isEqualTo("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+        assertThat(reloaded.getSourceExternalId()).isEqualTo("dQw4w9WgXcQ");
+        assertThat(reloaded.getImageUrl()).isEqualTo("https://i.ytimg.com/test.jpg");
+    }
+
+    @Test
     void completingRecipeMarksItAsPersonalized() {
         User user = persistUser("completed-type-user");
         Recipe recipe = new Recipe(user, "개인화 완료 레시피", null, 10);

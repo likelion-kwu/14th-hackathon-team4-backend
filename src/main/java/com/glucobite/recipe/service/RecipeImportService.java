@@ -16,6 +16,7 @@ import com.glucobite.recipe.entity.RecipeStep;
 import com.glucobite.recipe.exception.InvalidRecipeAnalysisException;
 import com.glucobite.recipe.importing.AnalyzedRecipe;
 import com.glucobite.recipe.importing.RecipeTextAnalyzer;
+import com.glucobite.recipe.importing.RecipeSourceMetadata;
 import com.glucobite.recipe.repository.RecipeIngredientRepository;
 import com.glucobite.recipe.repository.RecipeRepository;
 import com.glucobite.recipe.repository.RecipeStepRepository;
@@ -73,18 +74,24 @@ public class RecipeImportService {
     }
 
     public ImportedRecipeResponse importText(Long userId, String sourceText) {
-        return importAnalyzedText(userId, sourceText, RecipeImportType.TEXT);
+        return importAnalyzedText(
+                userId,
+                sourceText,
+                RecipeImportType.TEXT,
+                RecipeSourceMetadata.none()
+        );
     }
 
     public ImportedRecipeResponse importAnalyzedText(
             Long userId,
             String sourceText,
-            RecipeImportType importType
+            RecipeImportType importType,
+            RecipeSourceMetadata sourceMetadata
     ) {
         AnalyzedRecipe analyzed = analyzer.analyze(sourceText);
         validate(analyzed);
         ImportedRecipeResponse response = transactionTemplate.execute(status ->
-                persist(userId, analyzed, importType)
+                persist(userId, analyzed, importType, sourceMetadata)
         );
         if (response == null) {
             throw new IllegalStateException("레시피 저장 결과가 없습니다.");
@@ -95,7 +102,8 @@ public class RecipeImportService {
     private ImportedRecipeResponse persist(
             Long userId,
             AnalyzedRecipe analyzed,
-            RecipeImportType importType
+            RecipeImportType importType,
+            RecipeSourceMetadata sourceMetadata
     ) {
         User user = userRepository.findById(userId).orElseThrow(InvalidCredentialsException::new);
         List<ResolvedIngredient> resolvedIngredients = resolveIngredients(analyzed.ingredients());
@@ -111,6 +119,11 @@ public class RecipeImportService {
                 importType,
                 scale(totalNutrition.calories())
         ));
+        recipe.attachSourceMetadata(
+                sourceMetadata.sourceUrl(),
+                sourceMetadata.externalId(),
+                sourceMetadata.imageUrl()
+        );
         List<RecipeIngredient> recipeIngredients = recipeIngredientRepository.saveAll(
                 resolvedIngredients.stream()
                         .map(item -> new RecipeIngredient(recipe, item.ingredient(), scale(item.amount())))
@@ -130,6 +143,9 @@ public class RecipeImportService {
                 recipe.getImportType(),
                 recipe.getRecipeType(),
                 recipe.isCompleted(),
+                recipe.getSourceUrl(),
+                recipe.getSourceExternalId(),
+                recipe.getImageUrl(),
                 scale(totalNutrition),
                 recipeIngredients.stream()
                         .map(item -> new RecipeIngredientResponse(
