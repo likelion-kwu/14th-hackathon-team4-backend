@@ -6,6 +6,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -69,6 +70,7 @@ public class SecurityConfig {
                         .requestMatchers(HEALTH_PATHS).permitAll()
                         .requestMatchers(OPENAPI_PATHS).permitAll()
                         .requestMatchers(PUBLIC_API_PATHS).permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/allergens").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
