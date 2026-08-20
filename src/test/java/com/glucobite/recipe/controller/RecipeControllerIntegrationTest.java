@@ -168,22 +168,31 @@ class RecipeControllerIntegrationTest {
         mockMvc.perform(get("/api/recipes")
                         .param("page", "-1")
                         .header("Authorization", token))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fieldErrors.page").exists());
 
         mockMvc.perform(get("/api/recipes")
                         .param("size", "0")
                         .header("Authorization", token))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fieldErrors.size").exists());
 
         mockMvc.perform(get("/api/recipes")
                         .param("size", "101")
                         .header("Authorization", token))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fieldErrors.size").exists());
 
         mockMvc.perform(get("/api/recipes")
                         .param("completed", "done")
                         .header("Authorization", token))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fieldErrors.completed")
+                        .value("요청 값 형식이 올바르지 않습니다."));
     }
 
     @Test

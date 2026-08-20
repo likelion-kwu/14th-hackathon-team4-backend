@@ -74,7 +74,11 @@ class AllergenControllerIntegrationTest {
     @Test
     void rejectsQueryLongerThanOneHundredCharacters() throws Exception {
         mockMvc.perform(get("/api/allergens").param("query", "가".repeat(101)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("요청 값을 확인해 주세요."))
+                .andExpect(jsonPath("$.fieldErrors.query")
+                        .value("검색어는 100자 이하여야 합니다."));
     }
 
     @Test
