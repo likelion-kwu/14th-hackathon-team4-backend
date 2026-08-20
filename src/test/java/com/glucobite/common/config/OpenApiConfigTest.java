@@ -126,4 +126,44 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.components.schemas.RecipeSummaryResponse.properties.totalCalories")
                         .exists());
     }
+
+    @Test
+    void documentsGptRecipePersonalizationContract() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/recipes/{recipeId}/personalized'].get")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/recipes/{recipeId}/personalized'].post.summary")
+                        .value("GPT 개인화 레시피 후보 생성"))
+                .andExpect(jsonPath(
+                        "$.paths['/api/recipes/{recipeId}/personalized'].post.security[0].bearerAuth"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/recipes/{recipeId}/personalized'].post.requestBody.content['application/json'].schema['$ref']"
+                ).value("#/components/schemas/GeneratePersonalizedRecipeRequest"))
+                .andExpect(jsonPath(
+                        "$.paths['/api/recipes/{recipeId}/personalized'].post.responses['201']"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/recipes/{recipeId}/personalized'].post.responses['400']"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/recipes/{recipeId}/personalized'].post.responses['502']"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.GeneratePersonalizedRecipeRequest.properties.previousCandidateId"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.PersonalizedRecipeDetailResponse.properties.candidateRecipeId"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.PersonalizedRecipeDetailResponse.properties.originalIngredients"
+                ).exists())
+                .andExpect(jsonPath("$.components.schemas.NutritionSummary.properties.sugar")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.NutritionSummary.properties.sodium")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.RecipeSummaryResponse.properties.recipeType.enum",
+                        containsInAnyOrder("BASE", "PERSONALIZATION_CANDIDATE", "PERSONALIZED")));
+    }
 }
