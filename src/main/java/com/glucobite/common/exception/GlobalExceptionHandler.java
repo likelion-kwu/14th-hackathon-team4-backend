@@ -8,11 +8,14 @@ import com.glucobite.recipe.exception.IngredientNotFoundException;
 import com.glucobite.recipe.exception.InvalidRecipeSubstitutionException;
 import com.glucobite.recipe.exception.InvalidRecipeAnalysisException;
 import com.glucobite.recipe.exception.InvalidSubstituteIngredientException;
+import com.glucobite.recipe.exception.InvalidYouTubeUrlException;
 import com.glucobite.recipe.exception.RecipeIngredientNotFoundException;
 import com.glucobite.recipe.exception.RecipeImportGenerationException;
 import com.glucobite.recipe.exception.RecipeNotFoundException;
 import com.glucobite.recipe.exception.RecipeNotPersonalizableException;
 import com.glucobite.recipe.exception.RecipePersonalizationGenerationException;
+import com.glucobite.recipe.exception.YouTubeFetchException;
+import com.glucobite.recipe.exception.YouTubeTranscriptUnavailableException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.context.MessageSourceResolvable;
@@ -159,6 +162,36 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ApiErrorResponse.of(
                 "RECIPE_IMPORT_GENERATION_FAILED",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(InvalidYouTubeUrlException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidYouTubeUrl(
+            InvalidYouTubeUrlException exception
+    ) {
+        return ResponseEntity.badRequest().body(ApiErrorResponse.of(
+                "INVALID_YOUTUBE_URL",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(YouTubeTranscriptUnavailableException.class)
+    public ResponseEntity<ApiErrorResponse> handleYouTubeTranscriptUnavailable(
+            YouTubeTranscriptUnavailableException exception
+    ) {
+        return ResponseEntity.unprocessableEntity().body(ApiErrorResponse.of(
+                "YOUTUBE_TRANSCRIPT_UNAVAILABLE",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(YouTubeFetchException.class)
+    public ResponseEntity<ApiErrorResponse> handleYouTubeFetch(
+            YouTubeFetchException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ApiErrorResponse.of(
+                "YOUTUBE_FETCH_FAILED",
                 exception.getMessage()
         ));
     }

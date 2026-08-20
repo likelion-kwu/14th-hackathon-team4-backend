@@ -4,7 +4,14 @@ import com.glucobite.common.config.OpenApiConfig;
 import com.glucobite.common.exception.ApiErrorResponse;
 import com.glucobite.recipe.dto.ImportedRecipeResponse;
 import com.glucobite.recipe.dto.TextRecipeImportRequest;
+import com.glucobite.recipe.dto.YouTubeRecipeImportRequest;
+import com.glucobite.recipe.entity.RecipeImportType;
+import com.glucobite.recipe.importing.RecipeSourceMetadata;
 import com.glucobite.recipe.service.RecipeImportService;
+import com.glucobite.recipe.youtube.YouTubeTranscriptProvider;
+import com.glucobite.recipe.youtube.YouTubeUrlParser;
+import com.glucobite.recipe.youtube.YouTubeVideoContent;
+import com.glucobite.recipe.youtube.YouTubeVideoReference;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,9 +38,17 @@ import java.net.URI;
 public class RecipeImportController {
 
     private final RecipeImportService recipeImportService;
+    private final YouTubeUrlParser youTubeUrlParser;
+    private final YouTubeTranscriptProvider youTubeTranscriptProvider;
 
-    public RecipeImportController(RecipeImportService recipeImportService) {
+    public RecipeImportController(
+            RecipeImportService recipeImportService,
+            YouTubeUrlParser youTubeUrlParser,
+            YouTubeTranscriptProvider youTubeTranscriptProvider
+    ) {
         this.recipeImportService = recipeImportService;
+        this.youTubeUrlParser = youTubeUrlParser;
+        this.youTubeTranscriptProvider = youTubeTranscriptProvider;
     }
 
     @PostMapping("/text")
@@ -63,5 +78,33 @@ public class RecipeImportController {
         );
         return ResponseEntity.created(URI.create("/api/recipes/" + response.recipeId()))
                 .body(response);
+    }
+
+    @PostMapping("/youtube")
+    public ResponseEntity<ImportedRecipeResponse> importYouTube(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody YouTubeRecipeImportRequest request
+    ) {
+        YouTubeVideoReference reference = youTubeUrlParser.parse(request.url());
+        YouTubeVideoContent content = youTubeTranscriptProvider.fetch(reference);
+        ImportedRecipeResponse response = recipeImportService.importAnalyzedText(
+                Long.valueOf(jwt.getSubject()),
+                analysisText(content),
+                RecipeImportType.URL,
+                new RecipeSourceMetadata(
+                        content.canonicalUrl(),
+                        content.videoId(),
+                        content.thumbnailUrl()
+                )
+        );
+        return ResponseEntity.created(URI.create("/api/recipes/" + response.recipeId()))
+                .body(response);
+    }
+
+    private String analysisText(YouTubeVideoContent content) {
+        if (content.title() == null || content.title().isBlank()) {
+            return content.transcript();
+        }
+        return "영상 제목: " + content.title() + "\n자막:\n" + content.transcript();
     }
 }
