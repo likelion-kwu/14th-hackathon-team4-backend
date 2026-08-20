@@ -4,6 +4,7 @@ import com.glucobite.auth.exception.DuplicateLoginIdException;
 import com.glucobite.auth.exception.InvalidAllergenException;
 import com.glucobite.auth.exception.InvalidCredentialsException;
 import com.glucobite.auth.exception.InvalidRefreshTokenException;
+import com.glucobite.auth.exception.AuthenticatedUserNotFoundException;
 import com.glucobite.health.exception.HealthProfileNotFoundException;
 import com.glucobite.recipe.exception.IngredientNotFoundException;
 import com.glucobite.recipe.exception.InvalidRecipeSubstitutionException;
@@ -125,6 +126,16 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiErrorResponse.of(
                 "INVALID_REFRESH_TOKEN",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(AuthenticatedUserNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleAuthenticatedUserNotFound(
+            AuthenticatedUserNotFoundException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiErrorResponse.of(
+                "INVALID_AUTHENTICATION",
                 exception.getMessage()
         ));
     }

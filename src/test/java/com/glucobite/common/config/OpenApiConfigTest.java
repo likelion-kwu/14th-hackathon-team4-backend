@@ -96,6 +96,20 @@ class OpenApiConfigTest {
     }
 
     @Test
+    void documentsCurrentUserContract() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/users/me'].get.summary")
+                        .value("현재 사용자 조회"))
+                .andExpect(jsonPath("$.paths['/api/users/me'].get.security[0].bearerAuth")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.CurrentUserResponse.properties.userId")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.CurrentUserResponse.properties.password")
+                        .doesNotExist());
+    }
+
+    @Test
     void documentsPublicAllergenLookup() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
