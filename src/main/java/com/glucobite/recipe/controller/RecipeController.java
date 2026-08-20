@@ -2,7 +2,9 @@ package com.glucobite.recipe.controller;
 
 import com.glucobite.common.config.OpenApiConfig;
 import com.glucobite.common.exception.ApiErrorResponse;
+import com.glucobite.recipe.dto.GenerateIngredientAlternativesRequest;
 import com.glucobite.recipe.dto.IngredientAlternativeListResponse;
+import com.glucobite.recipe.dto.IngredientAlternativeSuggestionListResponse;
 import com.glucobite.recipe.dto.GeneratePersonalizedRecipeRequest;
 import com.glucobite.recipe.dto.PersonalizedRecipeDetailResponse;
 import com.glucobite.recipe.dto.RecipeDetailResponse;
@@ -16,6 +18,7 @@ import com.glucobite.recipe.dto.SavedPersonalizedRecipeResponse;
 import com.glucobite.recipe.service.RecipeService;
 import com.glucobite.recipe.service.RecipePersonalizationCandidateService;
 import com.glucobite.recipe.service.RecipePersonalizationService;
+import com.glucobite.recipe.service.RecipeSubstitutionSuggestionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -49,15 +52,18 @@ public class RecipeController {
     private final RecipeService recipeService;
     private final RecipePersonalizationService personalizationService;
     private final RecipePersonalizationCandidateService candidateService;
+    private final RecipeSubstitutionSuggestionService substitutionSuggestionService;
 
     public RecipeController(
             RecipeService recipeService,
             RecipePersonalizationService personalizationService,
-            RecipePersonalizationCandidateService candidateService
+            RecipePersonalizationCandidateService candidateService,
+            RecipeSubstitutionSuggestionService substitutionSuggestionService
     ) {
         this.recipeService = recipeService;
         this.personalizationService = personalizationService;
         this.candidateService = candidateService;
+        this.substitutionSuggestionService = substitutionSuggestionService;
     }
 
     @GetMapping
@@ -201,6 +207,35 @@ public class RecipeController {
             @PathVariable Long ingredientId
     ) {
         return personalizationService.getAlternatives(parseUserId(jwt), recipeId, ingredientId);
+    }
+
+    @PostMapping("/{recipeId}/ingredients/{ingredientId}/alternatives")
+    @Operation(summary = "사용자 입력 기반 대체 재료 후보 생성",
+            description = "등록 대체재를 먼저 확인하고, 필요하면 OpenAI web search로 Recipe 범위 후보를 생성합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "등록 대체재, 캐시 또는 새 AI 후보 반환",
+                    content = @Content(schema = @Schema(implementation = IngredientAlternativeSuggestionListResponse.class))),
+            @ApiResponse(responseCode = "400", description = "요청 값 또는 제외 후보가 올바르지 않음",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "소유한 레시피, 재료 또는 건강 프로필이 없음",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "502", description = "OpenAI 호출 또는 응답 검증 실패",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
+    public IngredientAlternativeSuggestionListResponse generateAlternatives(
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long recipeId,
+            @PathVariable Long ingredientId,
+            @Valid @RequestBody GenerateIngredientAlternativesRequest request
+    ) {
+        return substitutionSuggestionService.generate(
+                parseUserId(jwt),
+                recipeId,
+                ingredientId,
+                request
+        );
     }
 
     @PostMapping("/{recipeId}/substitutions/preview")

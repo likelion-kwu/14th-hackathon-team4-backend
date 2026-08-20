@@ -7,6 +7,8 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.validation.autoconfigure.ValidationAutoConfiguration;
 import org.springframework.context.annotation.Configuration;
 
+import java.time.Duration;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class OpenAIPropertiesTest {
@@ -44,6 +46,12 @@ class OpenAIPropertiesTest {
                         "app.openai.model="
                 )
                 .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void boundsOpenAiRequestToThirtySeconds() {
+        assertThat(OpenAIConfig.REQUEST_TIMEOUT)
+                .isLessThanOrEqualTo(Duration.ofSeconds(30));
     }
 
     @Configuration(proxyBeanMethods = false)

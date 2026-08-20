@@ -6,8 +6,11 @@ import com.glucobite.recipe.entity.RecipeImportType;
 import com.glucobite.recipe.exception.YouTubeFetchException;
 import com.glucobite.recipe.exception.YouTubeTranscriptUnavailableException;
 import com.glucobite.recipe.importing.AnalyzedRecipe;
+import com.glucobite.recipe.importing.RecipeImportResult;
+import com.glucobite.recipe.importing.RecipeSourceMetadata;
 import com.glucobite.recipe.importing.RecipeTextAnalyzer;
 import com.glucobite.recipe.repository.RecipeRepository;
+import com.glucobite.recipe.service.RecipeImportService;
 import com.glucobite.recipe.youtube.YouTubeTranscriptProvider;
 import com.glucobite.recipe.youtube.YouTubeVideoContent;
 import com.glucobite.recipe.youtube.YouTubeVideoReference;
@@ -25,6 +28,11 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -32,6 +40,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -49,6 +58,7 @@ class YouTubeRecipeImportIntegrationTest {
     @Autowired private RecipeRepository recipeRepository;
     @Autowired private JwtTokenService jwtTokenService;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private RecipeImportService recipeImportService;
 
     @MockitoBean private YouTubeTranscriptProvider transcriptProvider;
     @MockitoBean private RecipeTextAnalyzer recipeTextAnalyzer;
@@ -129,14 +139,80 @@ class YouTubeRecipeImportIntegrationTest {
     }
 
     @Test
-    void allowsReimportingSameVideoAsASeparateBaseRecipe() throws Exception {
+    void returnsExistingRecipeWithoutRepeatingExternalCalls() throws Exception {
         given(transcriptProvider.fetch(any())).willReturn(videoContent());
         given(recipeTextAnalyzer.analyze(any())).willReturn(validAnalysis());
 
         performImport().andExpect(status().isCreated());
+        Long recipeId = recipeRepository.findAll().getFirst().getId();
+        performImport()
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recipeId").value(recipeId));
+
+        assertThat(recipeRepository.count()).isEqualTo(1);
+        assertThat(recipeRepository.findAll().getFirst().getImportDedupeKey())
+                .isEqualTo("YOUTUBE:" + VIDEO_ID);
+        verify(transcriptProvider, times(1)).fetch(any());
+        verify(recipeTextAnalyzer, times(1)).analyze(any());
+    }
+
+    @Test
+    void allowsDifferentUsersToImportSameVideo() throws Exception {
+        User otherUser = userRepository.save(new User(
+                "youtube-import-other",
+                "encoded-password",
+                "다른 유튜브 사용자"
+        ));
+        given(transcriptProvider.fetch(any())).willReturn(videoContent());
+        given(recipeTextAnalyzer.analyze(any())).willReturn(validAnalysis());
+
         performImport().andExpect(status().isCreated());
+        mockMvc.perform(post("/api/recipes/import/youtube")
+                        .header("Authorization", "Bearer "
+                                + jwtTokenService.issue(otherUser.getId()).accessToken())
+                        .contentType("application/json")
+                        .content("{\"url\":\"" + CANONICAL_URL + "\"}"))
+                .andExpect(status().isCreated());
 
         assertThat(recipeRepository.count()).isEqualTo(2);
+    }
+
+    @Test
+    void concurrentSameVideoImportsCreateOneRecipe() throws Exception {
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        given(recipeTextAnalyzer.analyze(any())).willAnswer(invocation -> {
+            barrier.await(5, TimeUnit.SECONDS);
+            return validAnalysis();
+        });
+        RecipeSourceMetadata source = new RecipeSourceMetadata(
+                CANONICAL_URL,
+                VIDEO_ID,
+                "https://i.ytimg.com/test.jpg"
+        );
+
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<RecipeImportResult> first = executor.submit(() ->
+                    recipeImportService.importUniqueSource(
+                            user.getId(),
+                            "첫 동시 자막",
+                            RecipeImportType.URL,
+                            source
+                    ));
+            Future<RecipeImportResult> second = executor.submit(() ->
+                    recipeImportService.importUniqueSource(
+                            user.getId(),
+                            "둘째 동시 자막",
+                            RecipeImportType.URL,
+                            source
+                    ));
+
+            assertThat(List.of(
+                    first.get(10, TimeUnit.SECONDS).created(),
+                    second.get(10, TimeUnit.SECONDS).created()
+            )).containsExactlyInAnyOrder(true, false);
+        }
+
+        assertThat(recipeRepository.count()).isEqualTo(1);
     }
 
     @Test

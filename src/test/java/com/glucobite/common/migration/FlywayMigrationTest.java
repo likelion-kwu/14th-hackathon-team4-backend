@@ -124,6 +124,164 @@ class FlywayMigrationTest {
         ));
     }
 
+    @Test
+    void appliesIngredientNutritionPrecisionMigration() {
+        assertTrue(isApplied("9"));
+        assertEquals(7L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_name = 'ingredient_nutritions'
+                  AND column_name IN (
+                    'calories', 'carb', 'protein', 'fat', 'fiber', 'sugar', 'sodium'
+                  )
+                  AND numeric_precision = 14
+                  AND numeric_scale = 6
+                """,
+                Long.class
+        ));
+    }
+
+    @Test
+    void appliesRecipeIngredientNutritionSnapshotMigration() {
+        assertTrue(isApplied("10"));
+        assertEquals(7L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_name = 'recipe_ingredients'
+                  AND column_name IN (
+                    'calories_per_gram', 'carb_per_gram', 'protein_per_gram',
+                    'fat_per_gram', 'fiber_per_gram', 'sugar_per_gram', 'sodium_per_gram'
+                  )
+                  AND numeric_precision = 14
+                  AND numeric_scale = 6
+                """,
+                Long.class
+        ));
+    }
+
+    @Test
+    void appliesIngredientNormalizedTitleMigration() {
+        assertTrue(isApplied("11"));
+        assertEquals(1L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_name = 'ingredients'
+                  AND column_name = 'normalized_title'
+                  AND is_nullable = 'NO'
+                """,
+                Long.class
+        ));
+        assertEquals(1L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.table_constraints
+                WHERE table_name = 'ingredients'
+                  AND constraint_name = 'uk_ingredients_normalized_title'
+                  AND constraint_type = 'UNIQUE'
+                """,
+                Long.class
+        ));
+    }
+
+    @Test
+    void appliesRecipeImportDedupeKeyMigration() {
+        assertTrue(isApplied("12"));
+        assertEquals(1L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_name = 'recipes'
+                  AND column_name = 'import_dedupe_key'
+                  AND is_nullable = 'YES'
+                """,
+                Long.class
+        ));
+        assertEquals(1L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.table_constraints
+                WHERE table_name = 'recipes'
+                  AND constraint_name = 'uk_recipes_user_import_dedupe_key'
+                  AND constraint_type = 'UNIQUE'
+                """,
+                Long.class
+        ));
+    }
+
+    @Test
+    void appliesRecipeSubstitutionSuggestionMigration() {
+        assertTrue(isApplied("13"));
+        assertEquals(1L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                  AND table_name = 'recipe_substitution_suggestions'
+                """,
+                Long.class
+        ));
+        assertEquals(7L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_name = 'recipe_substitution_suggestions'
+                  AND column_name IN (
+                    'calories_per_gram', 'carb_per_gram', 'protein_per_gram',
+                    'fat_per_gram', 'fiber_per_gram', 'sugar_per_gram', 'sodium_per_gram'
+                  )
+                  AND numeric_precision = 14
+                  AND numeric_scale = 6
+                  AND is_nullable = 'NO'
+                """,
+                Long.class
+        ));
+        assertEquals(1L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.table_constraints
+                WHERE table_name = 'recipe_substitution_suggestions'
+                  AND constraint_name = 'uk_recipe_sub_suggestion_request_order'
+                  AND constraint_type = 'UNIQUE'
+                """,
+                Long.class
+        ));
+        assertEquals(1L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                  AND table_name = 'recipe_substitution_suggestion_sources'
+                """,
+                Long.class
+        ));
+    }
+
+    @Test
+    void appliesRefreshTokenMigration() {
+        assertTrue(isApplied("14"));
+        assertEquals(1L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                  AND table_name = 'refresh_tokens'
+                """,
+                Long.class
+        ));
+        assertEquals(0L, jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_name = 'refresh_tokens'
+                  AND column_name = 'raw_token'
+                """,
+                Long.class
+        ));
+    }
+
     private boolean isApplied(String version) {
         return List.of(flyway.info().applied()).stream()
                 .anyMatch(migration -> version.equals(migration.getVersion().getVersion()));

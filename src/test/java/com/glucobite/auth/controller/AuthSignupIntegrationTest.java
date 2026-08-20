@@ -8,6 +8,7 @@ import com.glucobite.health.repository.AllergenRepository;
 import com.glucobite.health.repository.HealthProfileRepository;
 import com.glucobite.user.entity.User;
 import com.glucobite.user.repository.UserRepository;
+import com.glucobite.auth.repository.RefreshTokenRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
@@ -26,6 +28,7 @@ import java.time.LocalDate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -50,6 +53,9 @@ class AuthSignupIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
+
     @BeforeEach
     void cleanUpBeforeTest() {
         cleanUp();
@@ -61,6 +67,7 @@ class AuthSignupIntegrationTest {
     }
 
     private void cleanUp() {
+        refreshTokenRepository.deleteAll();
         healthProfileRepository.deleteAll();
         userRepository.deleteAll();
     }
@@ -76,7 +83,9 @@ class AuthSignupIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
-                .andExpect(jsonPath("$.expiresIn").value(3600));
+                .andExpect(jsonPath("$.expiresIn").value(3600))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE,
+                        org.hamcrest.Matchers.containsString("HttpOnly")));
 
         User user = userRepository.findByLoginId("signup-user").orElseThrow();
         HealthProfile profile = healthProfileRepository.findByUserId(user.getId()).orElseThrow();

@@ -49,7 +49,11 @@ public class DietaryRestrictionPolicy {
     }
 
     public boolean isRestricted(Ingredient ingredient, Set<String> restrictedTerms) {
-        String title = normalize(ingredient.getTitle());
+        return isRestricted(ingredient.getTitle(), restrictedTerms);
+    }
+
+    public boolean isRestricted(String ingredientTitle, Set<String> restrictedTerms) {
+        String title = normalize(ingredientTitle);
         return restrictedTerms.stream()
                 .map(this::normalize)
                 .anyMatch(term -> containsRestrictedTerm(title, term));

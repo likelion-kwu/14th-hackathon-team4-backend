@@ -1,8 +1,11 @@
 package com.glucobite.common.exception;
 
 import com.glucobite.auth.exception.DuplicateLoginIdException;
+import com.glucobite.auth.exception.AccountPersistenceException;
 import com.glucobite.auth.exception.InvalidAllergenException;
 import com.glucobite.auth.exception.InvalidCredentialsException;
+import com.glucobite.auth.exception.InvalidRefreshTokenException;
+import com.glucobite.auth.exception.AuthenticatedUserNotFoundException;
 import com.glucobite.health.exception.HealthProfileNotFoundException;
 import com.glucobite.recipe.exception.IngredientNotFoundException;
 import com.glucobite.recipe.exception.InvalidRecipeSubstitutionException;
@@ -108,12 +111,40 @@ public class GlobalExceptionHandler {
         ));
     }
 
+    @ExceptionHandler(AccountPersistenceException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountPersistence() {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiErrorResponse.of(
+                "ACCOUNT_PERSISTENCE_FAILED",
+                "계정 정보를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
+        ));
+    }
+
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidCredentials(
             InvalidCredentialsException exception
     ) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiErrorResponse.of(
                 "INVALID_CREDENTIALS",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidRefreshToken(
+            InvalidRefreshTokenException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiErrorResponse.of(
+                "INVALID_REFRESH_TOKEN",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(AuthenticatedUserNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleAuthenticatedUserNotFound(
+            AuthenticatedUserNotFoundException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiErrorResponse.of(
+                "INVALID_AUTHENTICATION",
                 exception.getMessage()
         ));
     }

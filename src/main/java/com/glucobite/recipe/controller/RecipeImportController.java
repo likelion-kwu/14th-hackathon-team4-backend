@@ -7,6 +7,7 @@ import com.glucobite.recipe.dto.TextRecipeImportRequest;
 import com.glucobite.recipe.dto.YouTubeRecipeImportRequest;
 import com.glucobite.recipe.entity.RecipeImportType;
 import com.glucobite.recipe.importing.RecipeSourceMetadata;
+import com.glucobite.recipe.importing.RecipeImportResult;
 import com.glucobite.recipe.service.RecipeImportService;
 import com.glucobite.recipe.youtube.YouTubeTranscriptProvider;
 import com.glucobite.recipe.youtube.YouTubeUrlParser;
@@ -88,6 +89,8 @@ public class RecipeImportController {
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "기본 Recipe 저장 성공",
                     content = @Content(schema = @Schema(implementation = ImportedRecipeResponse.class))),
+            @ApiResponse(responseCode = "200", description = "이미 불러온 동일 영상의 기본 Recipe 반환",
+                    content = @Content(schema = @Schema(implementation = ImportedRecipeResponse.class))),
             @ApiResponse(responseCode = "400", description = "잘못되었거나 지원하지 않는 YouTube URL",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
             @ApiResponse(responseCode = "401", description = "인증 실패",
@@ -101,10 +104,22 @@ public class RecipeImportController {
             @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody YouTubeRecipeImportRequest request
     ) {
+        Long userId = Long.valueOf(jwt.getSubject());
         YouTubeVideoReference reference = youTubeUrlParser.parse(request.url());
+        var existing = recipeImportService.findImportedSource(
+                userId,
+                RecipeImportType.URL,
+                reference.videoId()
+        );
+        if (existing.isPresent()) {
+            ImportedRecipeResponse response = existing.get();
+            return ResponseEntity.ok()
+                    .location(URI.create("/api/recipes/" + response.recipeId()))
+                    .body(response);
+        }
         YouTubeVideoContent content = youTubeTranscriptProvider.fetch(reference);
-        ImportedRecipeResponse response = recipeImportService.importAnalyzedText(
-                Long.valueOf(jwt.getSubject()),
+        RecipeImportResult result = recipeImportService.importUniqueSource(
+                userId,
                 analysisText(content),
                 RecipeImportType.URL,
                 new RecipeSourceMetadata(
@@ -113,8 +128,11 @@ public class RecipeImportController {
                         content.thumbnailUrl()
                 )
         );
-        return ResponseEntity.created(URI.create("/api/recipes/" + response.recipeId()))
-                .body(response);
+        URI location = URI.create("/api/recipes/" + result.response().recipeId());
+        if (result.created()) {
+            return ResponseEntity.created(location).body(result.response());
+        }
+        return ResponseEntity.ok().location(location).body(result.response());
     }
 
     private String analysisText(YouTubeVideoContent content) {

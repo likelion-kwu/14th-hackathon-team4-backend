@@ -73,6 +73,9 @@ public class Recipe extends BaseTimeEntity {
     @Column(name = "image_url", length = 500)
     private String imageUrl;
 
+    @Column(name = "import_dedupe_key", length = 150)
+    private String importDedupeKey;
+
     public Recipe(
             User user,
             String title,
@@ -163,5 +166,8 @@ public class Recipe extends BaseTimeEntity {
         this.sourceUrl = sourceUrl;
         this.sourceExternalId = sourceExternalId;
         this.imageUrl = imageUrl;
+        this.importDedupeKey = importType == RecipeImportType.URL && sourceExternalId != null
+                ? "YOUTUBE:" + sourceExternalId
+                : null;
     }
 }

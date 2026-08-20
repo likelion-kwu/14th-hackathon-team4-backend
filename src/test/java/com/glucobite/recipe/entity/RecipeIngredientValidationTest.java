@@ -60,4 +60,24 @@ class RecipeIngredientValidationTest {
 
         assertTrue(validator.validate(recipeIngredient).isEmpty());
     }
+
+    @Test
+    void rejectsNegativeNutritionSnapshot() {
+        RecipeIngredient recipeIngredient = new RecipeIngredient(
+                recipe,
+                ingredient,
+                BigDecimal.ONE,
+                new RecipeIngredient.NutritionSnapshot(
+                        new BigDecimal("-0.01"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO
+                )
+        );
+
+        assertFalse(validator.validate(recipeIngredient).isEmpty());
+    }
 }

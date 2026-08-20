@@ -202,8 +202,8 @@ public class RecipeService {
     ) {
         return nutritionCalculator.sum(ingredients.stream()
                 .map(recipeIngredient -> nutritionCalculator.contribute(
-                        nutritionMap.get(recipeIngredient.getIngredient().getId()),
-                        recipeIngredient.getAmount()
+                        recipeIngredient,
+                        nutritionMap.get(recipeIngredient.getIngredient().getId())
                 ))
                 .toList());
     }

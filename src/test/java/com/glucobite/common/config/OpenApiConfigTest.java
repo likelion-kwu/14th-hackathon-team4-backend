@@ -80,6 +80,36 @@ class OpenApiConfigTest {
     }
 
     @Test
+    void documentsRefreshAndLogoutContracts() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/auth/refresh'].post.summary")
+                        .value("Access Token 갱신"))
+                .andExpect(jsonPath("$.paths['/api/auth/refresh'].post.responses['200']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/auth/refresh'].post.responses['401']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/auth/logout'].post.summary")
+                        .value("로그아웃"))
+                .andExpect(jsonPath("$.paths['/api/auth/logout'].post.responses['204']")
+                        .exists());
+    }
+
+    @Test
+    void documentsCurrentUserContract() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/users/me'].get.summary")
+                        .value("현재 사용자 조회"))
+                .andExpect(jsonPath("$.paths['/api/users/me'].get.security[0].bearerAuth")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.CurrentUserResponse.properties.userId")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.CurrentUserResponse.properties.password")
+                        .doesNotExist());
+    }
+
+    @Test
     void documentsPublicAllergenLookup() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
@@ -243,6 +273,8 @@ class OpenApiConfigTest {
                         .value("#/components/schemas/YouTubeRecipeImportRequest"))
                 .andExpect(jsonPath("$.paths['/api/recipes/import/youtube'].post.responses['201'].content['*/*'].schema['$ref']")
                         .value("#/components/schemas/ImportedRecipeResponse"))
+                .andExpect(jsonPath("$.paths['/api/recipes/import/youtube'].post.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/ImportedRecipeResponse"))
                 .andExpect(jsonPath("$.paths['/api/recipes/import/youtube'].post.responses['400']").exists())
                 .andExpect(jsonPath("$.paths['/api/recipes/import/youtube'].post.responses['401']").exists())
                 .andExpect(jsonPath("$.paths['/api/recipes/import/youtube'].post.responses['422']").exists())
@@ -254,6 +286,38 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.components.schemas.ImportedRecipeResponse.properties.sourceExternalId")
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.ImportedRecipeResponse.properties.imageUrl")
+                        .exists());
+    }
+
+    @Test
+    void documentsUserInputIngredientAlternativeContract() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives'].post.summary")
+                        .value("사용자 입력 기반 대체 재료 후보 생성"))
+                .andExpect(jsonPath("$.paths['/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives'].post.security[0].bearerAuth")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives'].post.requestBody.content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/GenerateIngredientAlternativesRequest"))
+                .andExpect(jsonPath("$.paths['/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives'].post.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/IngredientAlternativeSuggestionListResponse"))
+                .andExpect(jsonPath("$.paths['/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives'].post.responses['400']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives'].post.responses['401']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives'].post.responses['404']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/recipes/{recipeId}/ingredients/{ingredientId}/alternatives'].post.responses['502']")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.GenerateIngredientAlternativesRequest.properties.userInput.maxLength")
+                        .value(300))
+                .andExpect(jsonPath("$.components.schemas.GenerateIngredientAlternativesRequest.properties.excludeSuggestionIds.maxItems")
+                        .value(10))
+                .andExpect(jsonPath("$.components.schemas.IngredientAlternativeSuggestionResponse.properties.origin.enum",
+                        containsInAnyOrder("REGISTERED", "AI_WEB_SEARCH")))
+                .andExpect(jsonPath("$.components.schemas.IngredientAlternativeSourceResponse.properties.url")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.IngredientSubstitutionRequest.properties.suggestionId")
                         .exists());
     }
 }

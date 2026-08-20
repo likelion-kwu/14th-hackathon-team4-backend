@@ -40,7 +40,7 @@ public class SecurityConfig {
             "/actuator/health/**"
     };
 
-    // Bearer JWT만 사용하므로 쿠키 기반 credentials는 허용하지 않는다.
+    // Access Token 갱신에 HttpOnly Refresh Token cookie를 사용한다.
     private static final List<String> ALLOWED_METHODS =
             List.of("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS");
 
@@ -92,7 +92,7 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(corsProperties.allowedOrigins());
         configuration.setAllowedMethods(ALLOWED_METHODS);
         configuration.setAllowedHeaders(ALLOWED_HEADERS);
-        configuration.setAllowCredentials(false);
+        configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

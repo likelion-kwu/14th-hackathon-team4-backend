@@ -30,6 +30,13 @@ app:
   jwt:
     secret: ${JWT_SECRET}
     expiration: ${JWT_EXPIRATION:1h}
+  auth:
+    refresh-token:
+      expiration: ${REFRESH_TOKEN_EXPIRATION:30d}
+      cookie-name: ${REFRESH_TOKEN_COOKIE_NAME:refresh_token}
+      cookie-secure: ${REFRESH_TOKEN_COOKIE_SECURE:true}
+      cookie-same-site: ${REFRESH_TOKEN_COOKIE_SAME_SITE:None}
+      cookie-domain: ${REFRESH_TOKEN_COOKIE_DOMAIN:}
   cors:
     # 기본값을 두지 않는다. 환경변수가 없으면 시작 시점에 실패해야 한다.
     allowed-origins: ${CORS_ALLOWED_ORIGINS}
