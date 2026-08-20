@@ -290,4 +290,20 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.components.schemas.IngredientSubstitutionRequest.properties.suggestionId")
                         .exists());
     }
+
+    @Test
+    void documentsMealLogContracts() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/meal-logs'].post.summary")
+                        .value("식사 기록"))
+                .andExpect(jsonPath("$.paths['/api/meal-logs'].post.security[0].bearerAuth")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/meal-logs'].post.responses['201']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/meal-logs'].get.summary")
+                        .value("식사 기록 조회"))
+                .andExpect(jsonPath("$.components.schemas.CreateMealLogRequest.properties.mealType.enum")
+                        .isArray());
+    }
 }
