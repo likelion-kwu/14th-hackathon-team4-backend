@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
 
@@ -19,6 +21,9 @@ class RecipeMetadataPersistenceTest {
 
     @Autowired
     private TestEntityManager entityManager;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     void persistsRecipeImportTypeAndTotalCalories() {
@@ -77,9 +82,43 @@ class RecipeMetadataPersistenceTest {
                 );
     }
 
+    @Test
+    void databaseRejectsUnknownImportType() {
+        User user = persistUser("invalid-import-type-user");
+
+        assertThrows(DataIntegrityViolationException.class, () ->
+                insertRecipeMetadata(user.getId(), "FILE", null)
+        );
+    }
+
+    @Test
+    void databaseRejectsNegativeTotalCalories() {
+        User user = persistUser("negative-db-calories-user");
+
+        assertThrows(DataIntegrityViolationException.class, () ->
+                insertRecipeMetadata(user.getId(), "TEXT", new BigDecimal("-0.01"))
+        );
+    }
+
     private User persistUser(String loginId) {
         return entityManager.persistAndFlush(
                 new User(loginId, "encoded-password", "레시피 사용자")
+        );
+    }
+
+    private void insertRecipeMetadata(Long userId, String importType, BigDecimal totalCalories) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO recipes (
+                    user_id, title, is_completed, created_at, updated_at,
+                    import_type, total_calories
+                ) VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?)
+                """,
+                userId,
+                "제약조건 테스트 레시피",
+                false,
+                importType,
+                totalCalories
         );
     }
 }
