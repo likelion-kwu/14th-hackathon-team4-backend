@@ -306,4 +306,18 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.components.schemas.CreateMealLogRequest.properties.mealType.enum")
                         .isArray());
     }
+
+    @Test
+    void documentsGlucoseRecordContracts() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/glucose-records'].post.summary")
+                        .value("혈당 기록"))
+                .andExpect(jsonPath("$.paths['/api/glucose-records'].post.responses['201']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/glucose-records'].get.summary")
+                        .value("혈당 기록 조회"))
+                .andExpect(jsonPath("$.components.schemas.CreateGlucoseRecordRequest.properties.context.enum")
+                        .isArray());
+    }
 }
